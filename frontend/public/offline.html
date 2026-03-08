@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Offline - HealthLine</title>
+  <style>
+    body {
+      font-family: 'Manrope', sans-serif;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      margin: 0;
+      background: linear-gradient(180deg, rgba(15, 118, 110, 0.03) 0%, rgba(255, 255, 255, 0) 100%);
+    }
+    .container {
+      text-align: center;
+      padding: 2rem;
+    }
+    h1 {
+      font-size: 2rem;
+      color: #0F766E;
+      margin-bottom: 1rem;
+    }
+    p {
+      color: #64748b;
+      margin-bottom: 2rem;
+    }
+    button {
+      background: #0F766E;
+      color: white;
+      border: none;
+      padding: 0.75rem 2rem;
+      border-radius: 9999px;
+      font-size: 1rem;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>You're Offline</h1>
+    <p>Please check your internet connection</p>
+    <button onclick="location.reload()">Try Again</button>
+  </div>
+</body>
+</html>

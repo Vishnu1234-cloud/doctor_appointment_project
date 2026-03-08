@@ -1,0 +1,82 @@
+version: '3.8'
+
+services:
+  # MongoDB
+  mongodb:
+    image: mongo:7.0
+    container_name: healthline_mongodb
+    restart: unless-stopped
+    ports:
+      - '27017:27017'
+    volumes:
+      - mongodb_data:/data/db
+    environment:
+      - MONGO_INITDB_DATABASE=healthline_db
+    networks:
+      - healthline_network
+
+  # Redis (for BullMQ/reminders)
+  redis:
+    image: redis:7-alpine
+    container_name: healthline_redis
+    restart: unless-stopped
+    ports:
+      - '6379:6379'
+    volumes:
+      - redis_data:/data
+    networks:
+      - healthline_network
+
+  # Backend (Node.js/Express)
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: healthline_backend
+    restart: unless-stopped
+    ports:
+      - '8001:8001'
+    environment:
+      - NODE_ENV=development
+      - PORT=8001
+      - MONGO_URL=mongodb://mongodb:27017
+      - DB_NAME=healthline_db
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    volumes:
+      - ./backend:/app/backend
+      - /app/backend/node_modules
+    depends_on:
+      - mongodb
+      - redis
+    networks:
+      - healthline_network
+    command: npm run dev
+
+  # Frontend (React)
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: healthline_frontend
+    restart: unless-stopped
+    ports:
+      - '3000:3000'
+    environment:
+      - REACT_APP_BACKEND_URL=http://localhost:8001
+    volumes:
+      - ./frontend:/app/frontend
+      - /app/frontend/node_modules
+    depends_on:
+      - backend
+    networks:
+      - healthline_network
+    command: yarn start
+
+volumes:
+  mongodb_data:
+  redis_data:
+
+networks:
+  healthline_network:
+    driver: bridge

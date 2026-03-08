@@ -1,0 +1,184 @@
+{
+  "design_system": {
+    "identity": {
+      "name": "E1_Medical_Premium",
+      "tone": "Professional, Empathetic, Trustworthy, Modern, Clean",
+      "archetype": "Organic & Earthy (Trust) + Swiss (Clarity)",
+      "theme_preference": "light"
+    },
+    "typography": {
+      "font_family": {
+        "headings": "Playfair Display, serif",
+        "body": "Manrope, sans-serif",
+        "mono": "JetBrains Mono, monospace"
+      },
+      "imports": [
+        "https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&family=Manrope:wght@300;400;500;600;700&display=swap"
+      ],
+      "scale": {
+        "h1": "text-5xl md:text-6xl font-bold tracking-tight leading-tight",
+        "h2": "text-4xl md:text-5xl font-semibold tracking-tight",
+        "h3": "text-2xl md:text-3xl font-medium",
+        "body_lg": "text-lg leading-relaxed text-muted-foreground",
+        "body_base": "text-base leading-relaxed text-muted-foreground",
+        "caption": "text-sm font-medium tracking-wide uppercase text-muted-foreground"
+      }
+    },
+    "colors": {
+      "palette": {
+        "primary": {
+          "name": "Deep Teal",
+          "hsl": "175 77% 26%",
+          "hex": "#0F766E",
+          "usage": "Primary buttons, active states, key branding elements"
+        },
+        "secondary": {
+          "name": "Soft Coral",
+          "hsl": "14 100% 70%",
+          "hex": "#FF8A65",
+          "usage": "Accents, highlights, 'Book Now' calls to action (warmth)"
+        },
+        "accent": {
+          "name": "Mint Sage",
+          "hsl": "168 84% 89%",
+          "hex": "#CCFBF1",
+          "usage": "Background highlights, subtle indicators"
+        },
+        "background": {
+          "name": "Clinical White",
+          "hsl": "0 0% 100%",
+          "hex": "#FFFFFF",
+          "usage": "Main background"
+        },
+        "surface": {
+          "name": "Warm Grey",
+          "hsl": "210 40% 98%",
+          "hex": "#F8FAFC",
+          "usage": "Secondary backgrounds, cards"
+        },
+        "text": {
+          "primary": "hsl(215 28% 17%)",
+          "secondary": "hsl(217 19% 27%)",
+          "muted": "hsl(215 16% 47%)"
+        }
+      },
+      "gradients": {
+        "hero_overlay": "linear-gradient(180deg, rgba(15, 118, 110, 0.05) 0%, rgba(255, 255, 255, 0) 100%)",
+        "subtle_glow": "radial-gradient(circle at 50% 50%, rgba(204, 251, 241, 0.4) 0%, rgba(255, 255, 255, 0) 70%)"
+      }
+    },
+    "components": {
+      "buttons": {
+        "primary": "bg-primary text-primary-foreground hover:bg-primary/90 h-11 px-8 rounded-full shadow-lg hover:shadow-xl transition-all duration-300 font-medium tracking-wide",
+        "secondary": "bg-secondary text-secondary-foreground hover:bg-secondary/90 h-11 px-8 rounded-full shadow-md hover:shadow-lg transition-all duration-300",
+        "outline": "border-2 border-primary text-primary hover:bg-primary/5 h-11 px-8 rounded-full font-medium transition-colors"
+      },
+      "cards": {
+        "base": "bg-white rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all duration-300 p-6",
+        "feature": "bg-slate-50/50 rounded-3xl border-none hover:bg-white hover:shadow-lg transition-all duration-300 p-8 group"
+      },
+      "inputs": {
+        "base": "h-12 rounded-xl border-slate-200 bg-white focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+      }
+    },
+    "layout": {
+      "container": "max-w-7xl mx-auto px-4 sm:px-6 lg:px-8",
+      "section_spacing": "py-20 md:py-32",
+      "grid_system": {
+        "bento": "grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8",
+        "dashboard": "grid grid-cols-12 gap-6"
+      }
+    },
+    "visual_enhancers": {
+      "glassmorphism": "backdrop-blur-xl bg-white/80 border border-white/20 shadow-sm",
+      "shadows": {
+        "soft": "0 4px 20px -2px rgba(15, 118, 110, 0.08)",
+        "float": "0 20px 40px -4px rgba(15, 118, 110, 0.12)"
+      },
+      "radius": {
+        "default": "0.75rem",
+        "large": "1.5rem",
+        "pill": "9999px"
+      }
+    }
+  },
+  "assets": {
+    "images": {
+      "hero_doctor": {
+        "url": "https://images.unsplash.com/photo-1673865641073-4479f93a7776",
+        "alt": "Professional Female Doctor Portrait",
+        "usage": "Hero section, About page main image"
+      },
+      "patient_video": {
+        "url": "https://images.unsplash.com/photo-1612831455740-a2f6212eeeb2",
+        "alt": "Happy Patient on Video Call",
+        "usage": "Telemedicine feature section, Patient dashboard"
+      },
+      "clinic_interior": {
+        "url": "https://images.unsplash.com/photo-1631507623121-eaaba8d4e7dc",
+        "alt": "Modern Clinic Interior Blurred",
+        "usage": "Backgrounds, Parallax sections, Login page background"
+      },
+      "consultation_action": {
+        "url": "https://images.unsplash.com/photo-1758691462749-a95ce1bd7f96",
+        "alt": "Doctor on Laptop Consultation",
+        "usage": "Services section, 'How it works' step"
+      },
+      "nurse_care": {
+        "url": "https://images.unsplash.com/photo-1631558554226-fb65b25aa939",
+        "alt": "Nurse taking blood pressure",
+        "usage": "Services detail page, Care section"
+      }
+    },
+    "icons": {
+      "library": "lucide-react",
+      "style": "stroke-width={1.5} className='text-primary'"
+    }
+  },
+  "implementation_guide": {
+    "tailwind_config_override": {
+      "theme": {
+        "extend": {
+          "colors": {
+            "primary": {
+              "DEFAULT": "hsl(175 77% 26%)",
+              "foreground": "hsl(0 0% 100%)"
+            },
+            "secondary": {
+              "DEFAULT": "hsl(14 100% 70%)",
+              "foreground": "hsl(0 0% 100%)"
+            },
+            "accent": {
+              "DEFAULT": "hsl(168 84% 89%)",
+              "foreground": "hsl(175 77% 26%)"
+            },
+            "muted": {
+              "DEFAULT": "hsl(210 40% 96.1%)",
+              "foreground": "hsl(215 16% 47%)"
+            }
+          },
+          "fontFamily": {
+            "sans": ["Manrope", "sans-serif"],
+            "serif": ["Playfair Display", "serif"]
+          },
+          "borderRadius": {
+            "lg": "1rem",
+            "md": "0.75rem",
+            "sm": "0.5rem"
+          }
+        }
+      }
+    },
+    "universal_rules": [
+      "DO NOT use generic 'Inter' font for headings. Use 'Playfair Display'.",
+      "DO NOT use full-screen gradients. Use white/clean backgrounds with subtle 'Mint Sage' highlights.",
+      "Buttons must be 'pill' shaped (rounded-full) for a friendly, organic feel.",
+      "Use 'glassmorphism' for sticky headers and floating action bars.",
+      "All interactive elements must have a 'data-testid' attribute.",
+      "Spacing must be generous (py-20 for sections). Don't cram content.",
+      "Use 'sonner' for toast notifications.",
+      "Images must be high-quality and professional. No cartoons or low-res stock.",
+      "Forms must use Shadcn UI components but styled with 'rounded-xl' and 'border-slate-200'."
+    ]
+  }
+}

@@ -1,0 +1,13 @@
+.App {
+  min-height: 100vh;
+}
+
+.hero-gradient {
+  background: linear-gradient(180deg, rgba(15, 118, 110, 0.03) 0%, rgba(255, 255, 255, 0) 100%);
+}
+
+.glassmorphism {
+  backdrop-filter: blur(24px);
+  background: rgba(255, 255, 255, 0.8);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
