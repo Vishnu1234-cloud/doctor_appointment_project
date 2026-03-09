@@ -4,7 +4,8 @@ import { WebSocketServer } from 'ws';
 import app from './app.js';
 import config from './config/env.js';
 import connectDB from './config/db.js';
-import { connectRedis } from './config/redis.js';
+import { connectRedis, getRedisClient } from './config/redis.js';
+import { createAdapter } from '@socket.io/redis-adapter';
 import logger from './utils/logger.js';
 import reminderWorker from './workers/reminder.worker.js';
 import { setupSocketIO } from './socket.js';
@@ -53,6 +54,14 @@ const startServer = async () => {
     // Connect Redis (optional - for reminders)
     connectRedis();
 
+    // Attempt to inject Redis horizontally scale Socket.IO
+    const pubClient = getRedisClient();
+    if (pubClient) {
+      const subClient = pubClient.duplicate();
+      io.adapter(createAdapter(pubClient, subClient));
+      logger.info('Socket.IO successfully bound to Redis Adapter for horizontal scaling');
+    }
+
     // Start server
     server.listen(config.port, '0.0.0.0', () => {
       logger.info(`🚀 Server running on port ${config.port}`);
@@ -92,6 +101,17 @@ const gracefulShutdown = async (signal) => {
 
 process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
 process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+
+// Safe handling for fatal architecture crashes
+process.on('uncaughtException', (error) => {
+  logger.fatal({ err: error }, 'Uncaught Exception detected. Shutting down gracefully...');
+  gracefulShutdown('uncaughtException');
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  logger.fatal({ reason, promise }, 'Unhandled Promise Rejection detected. Shutting down gracefully...');
+  gracefulShutdown('unhandledRejection');
+});
 
 // Start server
 startServer();

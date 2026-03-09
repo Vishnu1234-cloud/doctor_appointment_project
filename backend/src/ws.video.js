@@ -1,5 +1,6 @@
 import jwt from 'jsonwebtoken';
 import url from 'url';
+import xss from 'xss';
 import config from './config/env.js';
 import User from './models/User.js';
 import Appointment from './models/Appointment.js';
@@ -14,7 +15,21 @@ export const setupVideoSignaling = (wss) => {
   // Store active connections
   const rooms = new Map(); // appointmentId -> Map(userId -> ws)
 
+  // Configure ping polling to cleanup zombies safely natively
+  const interval = setInterval(() => {
+    wss.clients.forEach((ws) => {
+      if (ws.isAlive === false) return ws.terminate();
+      ws.isAlive = false;
+      ws.ping();
+    });
+  }, 30000);
+
+  wss.on('close', () => clearInterval(interval));
+
   wss.on('connection', async (ws, request) => {
+    ws.isAlive = true;
+    ws.on('pong', () => { ws.isAlive = true; });
+
     let userId = null;
     let userRole = null;
     let appointmentId = null;
@@ -67,6 +82,13 @@ export const setupVideoSignaling = (wss) => {
               return;
             }
 
+            // Check permissions dynamically
+            if (userRole === 'patient' && appointment.patient_id !== userId) {
+              ws.send(JSON.stringify({ type: 'error', message: 'Not authorized to access this consultation room' }));
+              ws.close();
+              return;
+            }
+
             // Add to room
             if (!rooms.has(appointmentId)) {
               rooms.set(appointmentId, new Map());
@@ -80,12 +102,26 @@ export const setupVideoSignaling = (wss) => {
               .filter(([uid]) => uid !== userId)
               .map(([uid, data]) => ({ user_id: uid, role: data.role }));
 
+            // Build ICE servers payload securely without exposing backend ENV globally
+            const iceServers = config.webrtc.turnUrls.map(url => {
+              const u = url.trim();
+              if (u.startsWith('turn:') && config.webrtc.turnUsername && config.webrtc.turnCredential) {
+                return {
+                  urls: u,
+                  username: config.webrtc.turnUsername,
+                  credential: config.webrtc.turnCredential
+                };
+              }
+              return { urls: u };
+            });
+
             ws.send(
               JSON.stringify({
                 type: 'auth_success',
                 user_id: userId,
                 user_role: userRole,
                 room_users: roomUsers,
+                ice_servers: iceServers,
               })
             );
 
@@ -128,16 +164,26 @@ export const setupVideoSignaling = (wss) => {
           } else if (data.type === 'chat_message') {
             // Handle chat messages
             const message = data.message;
+            const messageId = data.msgId; // Optional client-provided ID for ACK
+
             if (message && message.trim()) {
               try {
+                // Anti-Abuse: Size validation
+                if (message.length > 2000) {
+                  ws.send(JSON.stringify({ type: 'error', message: 'Message length exceeds 2000 characters limit' }));
+                  return;
+                }
+                // Sanitize incoming message to prevent XSS
+                const sanitizedMessage = typeof message === 'string' ? xss(message.trim()) : '';
+
                 // Save message to database
                 const savedMessage = await chatService.saveMessage(
                   appointmentId,
                   userId,
                   userRole,
-                  message.trim()
+                  sanitizedMessage
                 );
-                
+
                 // Broadcast to all users in the room (including sender)
                 broadcastToRoomAll(appointmentId, {
                   type: 'chat_message',
@@ -147,8 +193,16 @@ export const setupVideoSignaling = (wss) => {
                   from_role: userRole,
                   timestamp: savedMessage.timestamp,
                 });
-                
+
                 logger.info(`Chat message sent in appointment ${appointmentId} by ${userId}`);
+
+                // Delivery ACK to sender
+                ws.send(JSON.stringify({
+                  type: 'chat_message_ack',
+                  status: 'ok',
+                  msgId: savedMessage.id,
+                  clientMsgId: messageId
+                }));
               } catch (error) {
                 logger.error('Error saving chat message:', error.message);
                 ws.send(JSON.stringify({ type: 'error', message: 'Failed to send message' }));

@@ -35,6 +35,10 @@ const notificationLogSchema = new mongoose.Schema(
   }
 );
 
+// Indexes
+notificationLogSchema.index({ appointment_id: 1, user_id: 1 });
+notificationLogSchema.index({ created_at: 1 }, { expireAfterSeconds: 30 * 24 * 60 * 60 }); // 30-day TTL
+
 const NotificationLog = mongoose.model('NotificationLog', notificationLogSchema);
 
 export default NotificationLog;

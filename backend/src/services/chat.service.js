@@ -20,12 +20,13 @@ class ChatService {
   }
 
   // Get chat messages for an appointment
-  async getMessages(appointmentId) {
+  async getMessages(appointmentId, limit = 50, skip = 0) {
     const messages = await ChatMessage.find({ appointment_id: appointmentId })
-      .sort({ timestamp: 1 })
-      .limit(1000);
+      .sort({ timestamp: -1 })
+      .skip(skip)
+      .limit(limit);
 
-    return messages;
+    return messages.reverse();
   }
 
   // Delete messages (for cleanup)

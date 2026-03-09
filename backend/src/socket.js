@@ -1,6 +1,8 @@
 import jwt from 'jsonwebtoken';
+import xss from 'xss';
 import config from './config/env.js';
 import User from './models/User.js';
+import Appointment from './models/Appointment.js';
 import chatService from './services/chat.service.js';
 import logger from './utils/logger.js';
 
@@ -45,8 +47,18 @@ export const setupSocketIO = (io) => {
     logger.info(`Socket.IO connected: ${socket.user.id} (${socket.user.role})`);
 
     // Join appointment room
-    socket.on('join_appointment', async (appointmentId) => {
+    socket.on('join_appointment', async (appointmentId, callback) => {
       try {
+        // Validate appointment and user permission
+        const appointment = await Appointment.findOne({ id: appointmentId });
+        if (!appointment) {
+          throw new Error('Appointment not found');
+        }
+
+        if (socket.user.role === 'patient' && appointment.patient_id !== socket.user.id) {
+          throw new Error('Not authorized to access this consultation room');
+        }
+
         socket.join(`appointment_${appointmentId}`);
         logger.info(`User ${socket.user.id} joined appointment ${appointmentId}`);
 
@@ -62,23 +74,40 @@ export const setupSocketIO = (io) => {
           appointmentId,
           message: 'Successfully joined appointment',
         });
+
+        // Acknowledge to sender via callback if provided
+        if (typeof callback === 'function') {
+          callback({ status: 'ok' });
+        }
       } catch (error) {
         logger.error('Error joining appointment:', error.message);
-        socket.emit('error', { message: 'Failed to join appointment' });
+        socket.emit('error', { message: error.message || 'Failed to join appointment' });
+        if (typeof callback === 'function') callback({ status: 'error', error: error.message });
       }
     });
 
     // Send chat message
-    socket.on('send_message', async (data) => {
+    socket.on('send_message', async (data, callback) => {
       try {
         const { appointmentId, message } = data;
 
-        // Save message to database
+        // Anti-abuse: Limit message length and enforce existance
+        if (!message || message.trim().length === 0) {
+          throw new Error('Message cannot be empty');
+        }
+        if (message.length > 2000) {
+          throw new Error('Message length exceeds 2000 characters limit');
+        }
+
+        // Sanitize incoming message to prevent XSS
+        const sanitizedMessage = typeof message === 'string' ? xss(message.trim()) : '';
+
+        // Save message to database correctly
         const chatMessage = await chatService.saveMessage(
           appointmentId,
           socket.user.id,
           socket.user.role,
-          message
+          sanitizedMessage
         );
 
         // Broadcast to room
@@ -93,9 +122,15 @@ export const setupSocketIO = (io) => {
         });
 
         logger.info(`Message sent in appointment ${appointmentId}`);
+
+        // Provide delivery ACK to sender via callback
+        if (typeof callback === 'function') {
+          callback({ status: 'ok', msgId: chatMessage.id });
+        }
       } catch (error) {
         logger.error('Error sending message:', error.message);
-        socket.emit('error', { message: 'Failed to send message' });
+        socket.emit('error', { message: error.message || 'Failed to send message' });
+        if (typeof callback === 'function') callback({ status: 'error', error: error.message });
       }
     });
 

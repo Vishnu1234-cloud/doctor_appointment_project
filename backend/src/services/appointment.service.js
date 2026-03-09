@@ -49,15 +49,19 @@ class AppointmentService {
     return appointment;
   }
 
-  // Get appointments
-  async getAppointments(query = {}) {
-    const appointments = await Appointment.find(query).sort({ created_at: -1 });
+  // Get appointments with pagination
+  async getAppointments(query = {}, limit = 50, skip = 0) {
+    const appointments = await Appointment.find(query)
+      .sort({ created_at: -1 })
+      .skip(skip)
+      .limit(limit)
+      .lean();
     return appointments;
   }
 
   // Get appointment by ID
   async getAppointmentById(appointmentId) {
-    const appointment = await Appointment.findOne({ id: appointmentId });
+    const appointment = await Appointment.findOne({ id: appointmentId }).lean();
     return appointment;
   }
 
@@ -159,7 +163,7 @@ class AppointmentService {
     const bookedAppointments = await Appointment.find({
       date,
       status: { $nin: ['cancelled'] },
-    });
+    }).select('time').lean();
 
     const bookedTimes = bookedAppointments.map((apt) => apt.time);
 

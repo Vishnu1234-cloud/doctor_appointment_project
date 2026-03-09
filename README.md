@@ -25,7 +25,19 @@ docker-compose up -d
 # Redis: localhost:6379
 ```
 
-### Option 2: Manual Setup
+### Option 2: Production Docker-Compose (Optimized)
+When pushing to a droplet or production VPS, utilize the natively bundled optimized multi-stage build scripts natively mapping explicit healthchecks mapping:
+
+```bash
+# 1. Provide an explicit production URL to backend API locally
+export REACT_APP_BACKEND_URL="https://api.yourclinic.com"
+
+# 2. Build and boot daemon natively detached scaling seamlessly
+docker-compose -f docker-compose.prod.yml up -d --build
+```
+This architecture natively bounds MongoDB & Redis inside isolated Docker networks securely mapping frontend NGINX routing explicitly scaling seamlessly onto port `:80`.
+
+### Option 3: Manual Setup
 
 #### Prerequisites
 - Node.js 20+
@@ -77,34 +89,13 @@ yarn start
 
 ---
 
-## 🔐 Test Credentials
+## 🔐 Test Setup
 
-### Pre-seeded Accounts
-
-**Patient Account:**
-```
-Email: patient@test.com
-Password: test123
-Role: Patient
-```
-
-**Doctor Account:**
-```
-Email: doctor@healthline.com
-Password: doctor123
-Role: Doctor
-```
-
-**Admin Account:**
-```
-Email: admin@healthline.com
-Password: admin123
-Role: Admin
-```
+Please create a new account to test the system or use the seed script to generate users with secure credentials.
 
 ### Test Flow
 
-1. **Register new patient**: Use registration form or login with test patient
+1. **Register new patient**: Use registration form
 2. **Book appointment**: Select date/time, pay with test Razorpay
 3. **Doctor dashboard**: Login as doctor, view/manage appointments
 4. **Video consultation**: Join consultation room (patient + doctor)

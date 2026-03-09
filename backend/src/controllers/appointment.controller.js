@@ -1,4 +1,5 @@
 import appointmentService from '../services/appointment.service.js';
+import { getRedisClient } from '../config/redis.js';
 import logger from '../utils/logger.js';
 
 class AppointmentController {
@@ -20,6 +21,11 @@ class AppointmentController {
         reason,
       });
 
+      const redis = getRedisClient();
+      if (redis && date) {
+        await redis.del(`availability_${date}`);
+      }
+
       res.status(201).json(appointment.toObject());
     } catch (error) {
       next(error);
@@ -38,9 +44,13 @@ class AppointmentController {
         query = {};
       }
 
-      const appointments = await appointmentService.getAppointments(query);
+      const limit = parseInt(req.query.limit, 10) || 50;
+      const skip = parseInt(req.query.skip, 10) || 0;
 
-      res.json(appointments.map((a) => a.toObject()));
+      const appointments = await appointmentService.getAppointments(query, limit, skip);
+
+      // lean() already returns plain objects, so we can just send directly
+      res.json(appointments);
     } catch (error) {
       next(error);
     }
@@ -65,7 +75,8 @@ class AppointmentController {
         return res.status(403).json({ detail: 'Not authorized' });
       }
 
-      res.json(appointment.toObject());
+      // lean() returns a plain object
+      res.json(appointment);
     } catch (error) {
       next(error);
     }
@@ -123,6 +134,12 @@ class AppointmentController {
         time
       );
 
+      const redis = getRedisClient();
+      if (redis) {
+        await redis.del(`availability_${appointment.date}`); // old
+        await redis.del(`availability_${date}`); // new
+      }
+
       res.json({
         success: true,
         message: 'Appointment rescheduled successfully',
@@ -157,6 +174,11 @@ class AppointmentController {
         appointment_id,
         reason
       );
+
+      const redis = getRedisClient();
+      if (redis) {
+        await redis.del(`availability_${appointment.date}`);
+      }
 
       res.json({
         success: true,

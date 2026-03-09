@@ -19,7 +19,7 @@ export const apiLimiter = rateLimit({
 // Strict rate limiter for authentication endpoints
 export const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // Increased for testing - was 5
+  max: 5, // Strict limit for production
   skipSuccessfulRequests: false,
   message: 'Too many authentication attempts, please try again later',
   handler: (req, res) => {

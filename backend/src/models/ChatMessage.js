@@ -24,6 +24,8 @@ const chatMessageSchema = new mongoose.Schema(
     message: {
       type: String,
       required: true,
+      maxlength: 2000,
+      trim: true,
     },
     timestamp: {
       type: Date,
@@ -36,7 +38,7 @@ const chatMessageSchema = new mongoose.Schema(
 );
 
 // Indexes
-chatMessageSchema.index({ appointment_id: 1, timestamp: 1 });
+chatMessageSchema.index({ appointment_id: 1, timestamp: -1 });
 
 const ChatMessage = mongoose.model('ChatMessage', chatMessageSchema);
 

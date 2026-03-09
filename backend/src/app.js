@@ -2,7 +2,9 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import mongoSanitize from 'express-mongo-sanitize';
+import xss from 'xss-clean';
 import pinoHttp from 'pino-http';
+import crypto from 'crypto';
 import config from './config/env.js';
 import corsOptions from './config/cors.js';
 import logger from './utils/logger.js';
@@ -38,40 +40,68 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Sanitize data
 app.use(mongoSanitize());
+app.use(xss());
 
-// HTTP logging
-if (config.nodeEnv === 'development') {
-  app.use(pinoHttp({ logger }));
-}
+// Request IDs for Tracing
+app.use((req, res, next) => {
+  req.id = req.headers['x-request-id'] || crypto.randomUUID();
+  res.setHeader('X-Request-Id', req.id);
+  next();
+});
+
+// HTTP logging globally with request correlation
+app.use(pinoHttp({
+  logger,
+  genReqId: (req) => req.id,
+  serializers: {
+    req: (req) => ({
+      id: req.id,
+      method: req.method,
+      url: req.url,
+      client_ip: req.remoteAddress,
+      user_agent: req.headers['user-agent']
+    }),
+    res: (res) => ({
+      statusCode: res.statusCode
+    })
+  }
+}));
 
 // Rate limiting
 app.use('/api', apiLimiter);
 
-// Health check
-app.get('/health', (req, res) => {
-  res.json({ status: 'healthy', timestamp: new Date().toISOString() });
+// API Router configuration for versioning
+const apiRouter = express.Router();
+
+// Mount Health Check natively onto api
+apiRouter.get('/health', (req, res) => {
+  res.json({ status: 'healthy', timestamp: new Date().toISOString(), reqId: req.id });
 });
 
-// API routes (all prefixed with /api)
-app.use('/api/auth', authRoutes);
-app.use('/api/doctor', doctorRoutes);
-app.use('/api/appointments', appointmentRoutes);
-app.use('/api/prescriptions', prescriptionRoutes);
-app.use('/api/chat', chatRoutes);
-app.use('/api/testimonials', testimonialRoutes);
-app.use('/api/payments', paymentRoutes);
-app.use('/api/blog', blogRoutes);
-app.use('/api/medical-records', medicalRecordRoutes);
-app.use('/api/admin', adminRoutes);
+// API routes explicitly loaded into the sub-router
+apiRouter.use('/auth', authRoutes);
+apiRouter.use('/doctor', doctorRoutes);
+apiRouter.use('/appointments', appointmentRoutes);
+apiRouter.use('/prescriptions', prescriptionRoutes);
+apiRouter.use('/chat', chatRoutes);
+apiRouter.use('/testimonials', testimonialRoutes);
+apiRouter.use('/payments', paymentRoutes);
+apiRouter.use('/blog', blogRoutes);
+apiRouter.use('/medical-records', medicalRecordRoutes);
+apiRouter.use('/admin', adminRoutes);
 
 // Root route
-app.get('/api', (req, res) => {
+apiRouter.get('/', (req, res) => {
   res.json({
     message: 'HealthLine Telemedicine API',
-    version: '2.0.0',
+    v1: '/api/v1',
     status: 'active',
   });
 });
+
+// Alias mounting strategies internally
+app.use('/api/v1', apiRouter);
+app.use('/api', apiRouter); // Legacy backwards-compatibility
 
 // 404 handler
 app.use(notFoundHandler);

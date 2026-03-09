@@ -13,6 +13,10 @@ const appointmentSchema = new mongoose.Schema(
       required: true,
       index: true,
     },
+    doctor_id: {
+      type: String,
+      index: true,
+    },
     date: {
       type: String,
       required: true,
@@ -61,7 +65,10 @@ const appointmentSchema = new mongoose.Schema(
 );
 
 // Indexes
-appointmentSchema.index({ patient_id: 1, status: 1 });
+appointmentSchema.index({ patient_id: 1, date: 1, status: 1 }); // Optimized patient fetch
+appointmentSchema.index({ doctor_id: 1, date: 1, status: 1 }); // Optimized doctor fetch
+appointmentSchema.index({ patient_id: 1, created_at: -1 }); // Optimized pagination sort
+appointmentSchema.index({ doctor_id: 1, created_at: -1 }); // Optimized pagination sort
 appointmentSchema.index({ date: 1, time: 1 });
 appointmentSchema.index({ status: 1, date: 1 });
 

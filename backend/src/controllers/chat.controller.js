@@ -23,8 +23,10 @@ class ChatController {
   async getMessages(req, res, next) {
     try {
       const { appointment_id } = req.params;
+      const limit = parseInt(req.query.limit, 10) || 50;
+      const skip = parseInt(req.query.skip, 10) || 0;
 
-      const messages = await chatService.getMessages(appointment_id);
+      const messages = await chatService.getMessages(appointment_id, limit, skip);
 
       res.json(messages.map((m) => m.toObject()));
     } catch (error) {

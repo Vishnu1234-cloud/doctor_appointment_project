@@ -7,7 +7,14 @@ class TestimonialController {
   // Get testimonials
   async getTestimonials(req, res, next) {
     try {
-      let testimonials = await Testimonial.find().sort({ created_at: -1 }).limit(100);
+      const limit = Math.min(parseInt(req.query.limit, 10) || 20, 50);
+      const skip = parseInt(req.query.skip, 10) || 0;
+
+      let testimonials = await Testimonial.find()
+        .sort({ created_at: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean();
 
       // If no testimonials, seed with defaults
       if (testimonials.length === 0) {
@@ -62,7 +69,10 @@ class TestimonialController {
         testimonials = await Testimonial.insertMany(defaults);
       }
 
-      res.json(testimonials.map((t) => t.toObject()));
+      // Convert the newly inserted documents to plain objects for consistency
+      testimonials = testimonials.map(t => t.toObject ? t.toObject() : t);
+
+      res.json(testimonials);
     } catch (error) {
       next(error);
     }

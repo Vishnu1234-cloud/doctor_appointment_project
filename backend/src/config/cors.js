@@ -2,21 +2,24 @@ import config from './env.js';
 
 const corsOptions = {
   origin: (origin, callback) => {
-    // Allow requests with no origin (like mobile apps or Postman)
+    // Allow requests with no origin only in development (Postman, etc)
     if (!origin) {
+      if (config.nodeEnv === 'development') {
+        return callback(null, true);
+      }
+      return callback(new Error('Not allowed by CORS: Origin is required in production'));
+    }
+
+    // In development, allow wildcard origins
+    if (config.nodeEnv === 'development' && config.corsOrigins.includes('*')) {
       return callback(null, true);
     }
 
-    // In development, allow all origins
-    if (config.nodeEnv === 'development' && config.corsOrigins[0] === '*') {
-      return callback(null, true);
-    }
-
-    // Check if origin is in allowed list
-    if (config.corsOrigins.includes('*') || config.corsOrigins.includes(origin)) {
+    // Explicitly check whitelist
+    if (config.corsOrigins.includes(origin)) {
       callback(null, true);
     } else {
-      callback(new Error('Not allowed by CORS'));
+      callback(new Error(`Not allowed by CORS: ${origin}`));
     }
   },
   credentials: true,

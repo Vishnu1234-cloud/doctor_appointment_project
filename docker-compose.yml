@@ -14,6 +14,11 @@ services:
       - MONGO_INITDB_DATABASE=healthline_db
     networks:
       - healthline_network
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/test --quiet
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   # Redis (for BullMQ/reminders)
   redis:
@@ -26,6 +31,11 @@ services:
       - redis_data:/data
     networks:
       - healthline_network
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   # Backend (Node.js/Express)
   backend:
@@ -47,8 +57,10 @@ services:
       - ./backend:/app/backend
       - /app/backend/node_modules
     depends_on:
-      - mongodb
-      - redis
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     networks:
       - healthline_network
     command: npm run dev
@@ -76,6 +88,7 @@ services:
 volumes:
   mongodb_data:
   redis_data:
+
 
 networks:
   healthline_network:

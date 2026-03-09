@@ -67,7 +67,8 @@ const userSchema = new mongoose.Schema(
 
 // Indexes for performance
 userSchema.index({ email: 1, role: 1 });
-userSchema.index({ id: 1 });
+userSchema.index({ id: 1 }, { unique: true });
+userSchema.index({ google_id: 1 }, { sparse: true }); // Faster OAuth lookup
 
 const User = mongoose.model('User', userSchema);
 

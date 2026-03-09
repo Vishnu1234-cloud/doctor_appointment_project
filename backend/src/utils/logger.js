@@ -6,21 +6,23 @@ const logger = pino({
   transport:
     config.nodeEnv === 'development'
       ? {
-          target: 'pino-pretty',
-          options: {
-            colorize: true,
-            translateTime: 'SYS:standard',
-            ignore: 'pid,hostname',
-          },
-        }
+        target: 'pino-pretty',
+        options: {
+          colorize: true,
+          translateTime: 'SYS:standard',
+          ignore: 'pid,hostname',
+        },
+      }
       : undefined,
   formatters: {
     level: (label) => {
       return { level: label };
     },
   },
-  // CRITICAL: Never log OTP in production
-  redact: config.nodeEnv === 'production' ? ['otp', 'password', 'token', 'secret'] : [],
+  // CRITICAL: Never log sensitive data
+  redact: config.nodeEnv === 'production'
+    ? ['otp', 'password', 'token', 'secret', 'authorization', 'cookie', 'medicines', 'diagnosis', 'medical_record']
+    : ['password', 'secret'],
 });
 
 export default logger;
