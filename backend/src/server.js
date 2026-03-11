@@ -1,10 +1,11 @@
 import http from 'http';
 import { Server } from 'socket.io';
 import { WebSocketServer } from 'ws';
+import { Redis } from 'ioredis';
 import app from './app.js';
 import config from './config/env.js';
 import connectDB from './config/db.js';
-import { connectRedis, getRedisClient } from './config/redis.js';
+import { connectRedis } from './config/redis.js';
 import { createAdapter } from '@socket.io/redis-adapter';
 import logger from './utils/logger.js';
 import reminderWorker from './workers/reminder.worker.js';
@@ -35,7 +36,6 @@ setupVideoSignaling(wss);
 server.on('upgrade', (request, socket, head) => {
   const pathname = new URL(request.url, `http://${request.headers.host}`).pathname;
 
-  // Support both /ws/consultation/ and /api/ws/consultation/ for ingress compatibility
   if (pathname.startsWith('/ws/consultation/') || pathname.startsWith('/api/ws/consultation/')) {
     wss.handleUpgrade(request, socket, head, (ws) => {
       wss.emit('connection', ws, request);
@@ -45,39 +45,65 @@ server.on('upgrade', (request, socket, head) => {
   }
 });
 
+const createRedisSubClient = () => {
+  if (config.redis.url) {
+    return new Redis(config.redis.url, {
+      db: 0,
+      maxRetriesPerRequest: 1,
+      retryStrategy: (times) => {
+        if (times > 3) return null;
+        return Math.min(times * 200, 2000);
+      },
+    });
+  }
+
+  return new Redis({
+    host: config.redis.host,
+    port: config.redis.port,
+    username: config.redis.username,
+    password: config.redis.password,
+    tls: config.nodeEnv === 'production' ? {} : undefined,
+    db: 0,
+    maxRetriesPerRequest: 1,
+    retryStrategy: (times) => {
+      if (times > 3) return null;
+      return Math.min(times * 200, 2000);
+    },
+  });
+};
+
 // Connect to databases
 const startServer = async () => {
   try {
-    // Connect MongoDB
     await connectDB();
 
-//    // Connect Redis (optional)
-const redisClient = await connectRedis();
+    const redisClient = await connectRedis();
 
-if (redisClient) {
-  const pubClient = redisClient;
-  const subClient = redisClient.duplicate();
+    if (redisClient) {
+      const pubClient = redisClient;
+      const subClient = createRedisSubClient();
 
-  subClient.on('error', (err) => {
-    logger.error({ err: err.message }, 'Redis subClient error');
-  });
+      subClient.on('error', (err) => {
+        logger.error({ err: err.message }, 'Redis subClient error');
+      });
 
-  io.adapter(createAdapter(pubClient, subClient));
-  logger.info('Socket.IO bound to Redis Adapter');
-} else {
-  logger.warn('Redis not available. Running without Redis adapter.');
-}
+      subClient.on('ready', () => {
+        logger.info('Redis subClient ready');
+      });
 
-// Redis disabled for local development
+      io.adapter(createAdapter(pubClient, subClient));
+      logger.info('Socket.IO bound to Redis Adapter');
+    } else {
+      logger.warn('Redis not available. Running without Redis adapter.');
+    }
 
-    // Start server
     server.listen(config.port, '0.0.0.0', () => {
       logger.info(`🚀 Server running on port ${config.port}`);
       logger.info(`🌍 Environment: ${config.nodeEnv}`);
       logger.info(`📚 API Documentation: http://localhost:${config.port}/api`);
     });
   } catch (error) {
-    logger.error('Failed to start server:', error);
+    logger.error({ err: error.message }, 'Failed to start server');
     process.exit(1);
   }
 };
@@ -89,18 +115,15 @@ const gracefulShutdown = async (signal) => {
   server.close(async () => {
     logger.info('HTTP server closed');
 
-    // Close WebSocket servers
     io.close();
     wss.close();
 
-    // Close reminder worker
     await reminderWorker.close();
 
     logger.info('Graceful shutdown complete');
     process.exit(0);
   });
 
-  // Force shutdown after 10 seconds
   setTimeout(() => {
     logger.error('Forced shutdown due to timeout');
     process.exit(1);
@@ -110,7 +133,6 @@ const gracefulShutdown = async (signal) => {
 process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
 process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 
-// Safe handling for fatal architecture crashes
 process.on('uncaughtException', (error) => {
   logger.fatal({ err: error }, 'Uncaught Exception detected. Shutting down gracefully...');
   gracefulShutdown('uncaughtException');
@@ -121,5 +143,5 @@ process.on('unhandledRejection', (reason, promise) => {
   gracefulShutdown('unhandledRejection');
 });
 
-// Start server
 startServer();
+

@@ -8,9 +8,10 @@ const connectRedis = async () => {
   try {
     if (config.redis.url) {
       redisClient = new Redis(config.redis.url, {
+        db: 0,
         maxRetriesPerRequest: 1,
         retryStrategy: (times) => {
-          if (times > 3) return null; // stop retrying
+          if (times > 3) return null;
           return Math.min(times * 200, 2000);
         },
       });
@@ -21,9 +22,10 @@ const connectRedis = async () => {
         username: config.redis.username,
         password: config.redis.password,
         tls: config.nodeEnv === 'production' ? {} : undefined,
+        db: 0,
         maxRetriesPerRequest: 1,
         retryStrategy: (times) => {
-          if (times > 3) return null; // stop retrying
+          if (times > 3) return null;
           return Math.min(times * 200, 2000);
         },
       });
