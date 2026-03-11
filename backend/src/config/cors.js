@@ -2,30 +2,38 @@ import config from './env.js';
 
 const corsOptions = {
   origin: (origin, callback) => {
-    // Allow requests with no origin only in development (Postman, etc)
+
+    // ✅ Allow requests with NO origin (Render health checks, server-to-server, Postman)
     if (!origin) {
-      if (config.nodeEnv === 'development') {
-        return callback(null, true);
-      }
-      return callback(new Error('Not allowed by CORS: Origin is required in production'));
+      return callback(null, true);
     }
 
-    // In development, allow wildcard origins
+    // ✅ Development mode — allow all if '*' present
     if (config.nodeEnv === 'development' && config.corsOrigins.includes('*')) {
       return callback(null, true);
     }
 
-    // Explicitly check whitelist
+    // ✅ Production whitelist check
     if (config.corsOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      callback(new Error(`Not allowed by CORS: ${origin}`));
+      return callback(null, true);
     }
+
+    // ❌ Block others
+    return callback(new Error(`Not allowed by CORS: ${origin}`));
   },
+
   credentials: true,
+
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+
+  allowedHeaders: [
+    'Content-Type',
+    'Authorization',
+    'X-Requested-With',
+  ],
+
   exposedHeaders: ['Content-Range', 'X-Content-Range'],
+
   maxAge: 86400, // 24 hours
 };
 

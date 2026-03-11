@@ -3,6 +3,7 @@ import xss from 'xss';
 import config from './config/env.js';
 import User from './models/User.js';
 import Appointment from './models/Appointment.js';
+
 import chatService from './services/chat.service.js';
 import logger from './utils/logger.js';
 

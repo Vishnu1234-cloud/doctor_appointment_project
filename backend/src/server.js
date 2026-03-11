@@ -51,16 +51,24 @@ const startServer = async () => {
     // Connect MongoDB
     await connectDB();
 
-    // Connect Redis (optional - for reminders)
-    connectRedis();
+//    // Connect Redis (optional)
+const redisClient = await connectRedis();
 
-    // Attempt to inject Redis horizontally scale Socket.IO
-    const pubClient = getRedisClient();
-    if (pubClient) {
-      const subClient = pubClient.duplicate();
-      io.adapter(createAdapter(pubClient, subClient));
-      logger.info('Socket.IO successfully bound to Redis Adapter for horizontal scaling');
-    }
+if (redisClient) {
+  const pubClient = redisClient;
+  const subClient = redisClient.duplicate();
+
+  subClient.on('error', (err) => {
+    logger.error({ err: err.message }, 'Redis subClient error');
+  });
+
+  io.adapter(createAdapter(pubClient, subClient));
+  logger.info('Socket.IO bound to Redis Adapter');
+} else {
+  logger.warn('Redis not available. Running without Redis adapter.');
+}
+
+// Redis disabled for local development
 
     // Start server
     server.listen(config.port, '0.0.0.0', () => {
