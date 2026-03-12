@@ -244,3 +244,11 @@ export const sendOtpEmail = async ({ email, otp, userName }) => {
     logger.error('OTP email failed:', error);
   }
 };
+
+const emailService = {
+  sendAppointmentConfirmationEmail,
+  sendAppointmentReminderEmail,
+  sendOtpEmail,
+};
+
+export default emailService;
