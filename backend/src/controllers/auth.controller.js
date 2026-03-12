@@ -70,7 +70,7 @@ class AuthController {
   // Request OTP
   async requestOTP(req, res, next) {
     try {
-      const { email, delivery_channel } = req.body;
+      const { email, delivery_channel, phone } = req.body; // phone add kiya
 
       const user = await authService.getUserByEmail(email);
       if (!user) {
@@ -80,11 +80,17 @@ class AuthController {
         });
       }
 
-      const recipient = delivery_channel === 'sms' ? user.phone : user.email;
-      if (!recipient) {
-        return res.status(400).json({
-          detail: `${delivery_channel === 'sms' ? 'Phone number' : 'Email'} not found for this user`,
-        });
+      let recipient;
+      if (delivery_channel === 'sms') {
+        // Frontend se aaya phone use karo, warna DB wala
+        recipient = phone || user.phone;
+        if (!recipient) {
+          return res.status(400).json({
+            detail: 'Phone number not found. Please enter your mobile number.',
+          });
+        }
+      } else {
+        recipient = user.email;
       }
 
       const result = await otpService.sendOTP(
