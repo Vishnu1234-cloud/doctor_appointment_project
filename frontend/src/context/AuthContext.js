@@ -56,6 +56,10 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  const loginWithGoogle = () => {
+  window.location.href = `${API}/auth/google`;
+  };
+
   const login = async (email, password) => {
     const response = await axios.post(`${API}/auth/login`, { email, password });
     const { token: newToken, user: userData } = response.data;
@@ -63,6 +67,12 @@ export const AuthProvider = ({ children }) => {
     setToken(newToken);
     setUser(userData);
     axios.defaults.headers.common['Authorization'] = `Bearer ${newToken}`;
+
+    // ✅ Admin ko admin dashboard pe bhejo
+    if (userData?.role === 'admin') {
+      window.location.href = '/admin/dashboard';
+    }
+
     return userData;
   };
 
@@ -79,7 +89,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout, token }}>
+    <AuthContext.Provider value={{ user, loading, login, loginWithGoogle, register, logout, token }}>
       {children}
     </AuthContext.Provider>
   );

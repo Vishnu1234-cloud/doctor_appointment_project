@@ -59,7 +59,7 @@ export default function DoctorDashboard() {
   const todayAppointments = appointments.filter(
     apt => apt.date === new Date().toISOString().split('T')[0]
   );
-  
+
   const pendingAppointments = appointments.filter(apt => apt.status === 'pending');
   const completedAppointments = appointments.filter(apt => apt.status === 'completed');
 
@@ -69,8 +69,18 @@ export default function DoctorDashboard() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex justify-between items-center">
             <h1 className="text-2xl font-serif font-bold text-primary" data-testid="dashboard-logo">HealthLine</h1>
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-3">
               <p className="text-muted-foreground" data-testid="doctor-name">Welcome, {user?.full_name}</p>
+
+              {/* ✅ Profile Setup Button */}
+              <Button
+                onClick={() => navigate('/doctor/profile-setup')}
+                variant="outline"
+                className="rounded-full"
+              >
+                👤 Profile Setup
+              </Button>
+
               <Button onClick={handleLogout} variant="outline" className="rounded-full" data-testid="logout-button">
                 <LogOut size={16} className="mr-2" /> Logout
               </Button>

@@ -2,8 +2,7 @@ import { Worker } from 'bullmq';
 import { getRedisClient } from '../config/redis.js';
 import Appointment from '../models/Appointment.js';
 import User from '../models/User.js';
-import whatsappService from '../services/whatsapp.service.js';
-import emailService from '../services/email.service.js';
+import { sendAppointmentReminderEmail } from '../services/email.service.js';
 import logger from '../utils/logger.js';
 
 class ReminderWorker {
@@ -52,54 +51,61 @@ class ReminderWorker {
     logger.info(`[REMINDER] Processing ${type} reminder for ${appointmentId}`);
 
     try {
-      // Get appointment
+      // Appointment lo
       const appointment = await Appointment.findOne({ id: appointmentId });
       if (!appointment) {
         logger.warn(`[REMINDER] Appointment ${appointmentId} not found`);
         return;
       }
 
-      // Skip if cancelled or completed
+      // Cancel/complete hoga toh skip karo
       if (['cancelled', 'completed'].includes(appointment.status)) {
-        logger.info(`[REMINDER] Skipping reminder for ${appointment.status} appointment`);
+        logger.info(`[REMINDER] Skipping — appointment is ${appointment.status}`);
         return;
       }
 
-      // Get patient
+      // Patient lo
       const patient = await User.findOne({ id: appointment.patient_id });
       if (!patient) {
-        logger.warn(`[REMINDER] Patient not found for appointment ${appointmentId}`);
+        logger.warn(`[REMINDER] Patient not found for ${appointmentId}`);
         return;
       }
 
-      const reminderData = {
-        patient_name: patient.full_name,
-        date: appointment.date,
-        time: appointment.time,
-      };
+      // Doctor lo
+      const doctor = await User.findOne({ role: 'doctor' });
 
-      // Send reminder via WhatsApp or Email
-      if (patient.phone) {
-        if (type === '1-hour') {
-          await whatsappService.sendOneHourReminder(patient.phone, reminderData);
-        } else if (type === '10-minute') {
-          await whatsappService.sendTenMinuteReminder(patient.phone, reminderData);
-        }
-      } else if (patient.email) {
-        await emailService.sendAppointmentEmail(
-          patient.email,
-          patient.full_name,
-          {
-            ...reminderData,
-            reminder: type,
-          }
-        );
+      // ✅ Sirf 10-minute reminder pe email bhejo
+      if (type === '10-minute' && patient.email) {
+        await sendAppointmentReminderEmail({
+          patientEmail: patient.email,
+          patientName: patient.full_name || 'Patient',
+          doctorName: doctor?.full_name || 'Doctor',
+          date: appointment.date,
+          time: appointment.time,
+          consultationType: appointment.consultation_type || 'video',
+          appointmentId: appointment.id,
+        });
+        logger.info(`[REMINDER] 10-min email sent to ${patient.email}`);
       }
 
-      logger.info(`[REMINDER] ${type} reminder sent for appointment ${appointmentId}`);
+      // ✅ 1-hour reminder pe bhi email bhejo
+      if (type === '1-hour' && patient.email) {
+        await sendAppointmentReminderEmail({
+          patientEmail: patient.email,
+          patientName: patient.full_name || 'Patient',
+          doctorName: doctor?.full_name || 'Doctor',
+          date: appointment.date,
+          time: appointment.time,
+          consultationType: appointment.consultation_type || 'video',
+          appointmentId: appointment.id,
+        });
+        logger.info(`[REMINDER] 1-hour email sent to ${patient.email}`);
+      }
+
+      logger.info(`[REMINDER] ${type} reminder done for ${appointmentId}`);
     } catch (error) {
-      logger.error(`[REMINDER] Failed to process reminder:`, error.message);
-      throw error; // Re-throw for retry
+      logger.error(`[REMINDER] Failed:`, error.message);
+      throw error;
     }
   }
 

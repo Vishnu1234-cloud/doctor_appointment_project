@@ -9,6 +9,7 @@ import { ArrowLeft, Video, MessageCircle } from 'lucide-react';
 import axios from 'axios';
 import { useAuth } from '@/context/AuthContext';
 import { toast } from 'sonner';
+import ReviewList from '@/components/ReviewList'; // ✅ ADD HUA
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8001';
 const API = `${BACKEND_URL}/api`;
@@ -69,12 +70,10 @@ export default function BookAppointment() {
       toast.error('Please select a time slot');
       return;
     }
-
     if (!doctorProfile) {
       toast.error('Doctor profile not loaded yet');
       return;
     }
-
     if (!user?.id) {
       toast.error('Please login again');
       return;
@@ -106,13 +105,11 @@ export default function BookAppointment() {
 
       if (orderResponse.data.test_mode) {
         toast.success('Test Mode: Simulating payment...');
-
         await axios.post(`${API}/payments/verify`, {
           appointment_id: appointment.id,
           payment_id: `pay_test_${Date.now()}`,
           test_mode: true,
         });
-
         toast.success('Appointment booked successfully!');
         setTimeout(() => navigate('/patient/dashboard'), 800);
         return;
@@ -138,7 +135,6 @@ export default function BookAppointment() {
               payment_id: rzpResponse.razorpay_payment_id,
               test_mode: false,
             });
-
             toast.success('Appointment booked successfully!');
             setTimeout(() => navigate('/patient/dashboard'), 800);
           } catch (error) {
@@ -149,9 +145,7 @@ export default function BookAppointment() {
           name: user.full_name,
           email: user.email,
         },
-        theme: {
-          color: '#0F766E',
-        },
+        theme: { color: '#0F766E' },
       };
 
       const razorpay = new window.Razorpay(options);
@@ -175,6 +169,31 @@ export default function BookAppointment() {
       </header>
 
       <div className="max-w-5xl mx-auto px-4 py-12">
+
+        {/* ✅ Doctor Info Card — Reviews ke upar */}
+        {doctorProfile && (
+          <Card className="mb-8 rounded-2xl border-none shadow-md">
+            <CardContent className="p-6 flex items-center gap-6">
+              <div className="w-16 h-16 rounded-full bg-teal-100 flex items-center justify-center text-2xl font-bold text-teal-700">
+                {doctorProfile.full_name?.charAt(0) || 'D'}
+              </div>
+              <div>
+                <h2 className="text-xl font-semibold text-gray-800">
+                  Dr. {doctorProfile.full_name}
+                </h2>
+                {doctorProfile.specialization && (
+                  <p className="text-gray-500 text-sm">{doctorProfile.specialization}</p>
+                )}
+                {doctorProfile.consultation_fee && (
+                  <p className="text-teal-600 font-medium text-sm mt-1">
+                    Consultation Fee: ₹{doctorProfile.consultation_fee}
+                  </p>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         <form onSubmit={handleBookAppointment}>
           <div className="grid md:grid-cols-2 gap-8">
             <Card>
@@ -204,7 +223,6 @@ export default function BookAppointment() {
                       Video
                     </label>
                   </div>
-
                   <div className="flex items-center space-x-3 mt-3">
                     <RadioGroupItem value="chat" id="chat" />
                     <label htmlFor="chat" className="flex items-center cursor-pointer">
@@ -237,7 +255,7 @@ export default function BookAppointment() {
             </CardHeader>
             <CardContent>
               {availableSlots.length === 0 ? (
-                <p>No available slots</p>
+                <p className="text-gray-500 text-sm">No available slots for this date</p>
               ) : (
                 <div className="grid grid-cols-4 gap-3">
                   {availableSlots.map((slot, index) => (
@@ -261,6 +279,14 @@ export default function BookAppointment() {
             </Button>
           </div>
         </form>
+
+        {/* ✅ REVIEWS SECTION — Form ke bilkul neeche */}
+        {doctorProfile && (
+          <div className="mt-10 border-t border-gray-200 pt-8">
+            <ReviewList doctorId={doctorProfile.id} />
+          </div>
+        )}
+
       </div>
     </div>
   );

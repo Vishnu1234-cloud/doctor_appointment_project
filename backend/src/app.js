@@ -22,6 +22,8 @@ import paymentRoutes from './routes/payment.routes.js';
 import blogRoutes from './routes/blog.routes.js';
 import medicalRecordRoutes from './routes/medicalRecord.routes.js';
 import adminRoutes from './routes/admin.routes.js';
+import passport from './config/passport.js';
+import reviewRoutes from './routes/review.route.js';
 
 const app = express();
 
@@ -33,6 +35,7 @@ app.use(helmet());
 
 // CORS
 app.use(cors(corsOptions));
+app.use(passport.initialize());
 
 // Body parsers
 app.use(express.json({ limit: '10mb' }));
@@ -89,6 +92,7 @@ apiRouter.use('/payments', paymentRoutes);
 apiRouter.use('/blog', blogRoutes);
 apiRouter.use('/medical-records', medicalRecordRoutes);
 apiRouter.use('/admin', adminRoutes);
+apiRouter.use('/reviews', reviewRoutes);
 
 // Root route
 apiRouter.get('/', (req, res) => {

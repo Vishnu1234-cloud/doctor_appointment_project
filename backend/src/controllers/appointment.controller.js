@@ -1,6 +1,8 @@
 import appointmentService from '../services/appointment.service.js';
 import { getRedisClient } from '../config/redis.js';
 import logger from '../utils/logger.js';
+import { sendAppointmentConfirmationEmail } from '../services/email.service.js';
+import mongoose from 'mongoose';
 
 class AppointmentController {
   // Create appointment
@@ -21,12 +23,48 @@ class AppointmentController {
         reason,
       });
 
-      const redis = getRedisClient();
-      if (redis && date) {
-        await redis.del(`availability_${date}`);
-      }
+    const redis = getRedisClient();
+if (redis && date) {
+  await redis.del(`availability_${date}`);
+}
 
-      res.status(201).json(appointment.toObject());
+// ✅ Email notification bhejo
+try {
+  const db = mongoose.connection.db;
+
+  // Patient info lo
+  const patientUser = await db.collection('users').findOne({ id: patient_id });
+
+  // Doctor info lo
+  const doctorProfile = await db.collection('doctor_profile').findOne({});
+  const doctorUser = await db.collection('users').findOne(
+    { role: 'doctor' }
+  );
+
+  if (patientUser?.email) {
+    await sendAppointmentConfirmationEmail({
+      patientEmail: patientUser.email,
+      patientName: patientUser.full_name || 'Patient',
+      doctorName: doctorProfile?.full_name || doctorUser?.full_name || 'Doctor',
+      date,
+      time,
+      consultationType: consultation_type || 'video',
+      appointmentId: appointment.id,
+    });
+  }
+ } catch (emailError) {
+  logger.error('Email notification failed:', emailError);
+}
+
+// ✅ Reminder schedule karo
+try {
+  const reminderService = await import('../services/reminder.service.js');
+  await reminderService.default.scheduleReminders(appointment.id, date, time);
+} catch (reminderError) {
+  logger.error('Reminder scheduling failed:', reminderError);
+}
+
+res.status(201).json(appointment.toObject());
     } catch (error) {
       next(error);
     }

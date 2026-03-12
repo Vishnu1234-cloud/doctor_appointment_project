@@ -57,6 +57,11 @@ const appointmentSchema = new mongoose.Schema(
     completed_at: Date,
     cancelled_at: Date,
     cancellation_reason: String,
+    hasReviewed: {
+    type: Boolean,
+    default: false,
+},
+    
   },
   {
     timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' },

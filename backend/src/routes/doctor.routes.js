@@ -4,11 +4,15 @@ import { authMiddleware, requireRole } from '../middlewares/auth.middleware.js';
 
 const router = express.Router();
 
-// Public routes
+// ── Public Routes ──────────────────────────────────
 router.get('/profile', doctorController.getProfile);
 router.get('/availability', doctorController.getAvailability);
+router.get('/reviews', doctorController.getDoctorReviews);
 
-// Protected routes
+// ── Protected Routes (Doctor only) ────────────────
 router.put('/profile', authMiddleware, requireRole('doctor'), doctorController.updateProfile);
+router.put('/availability', authMiddleware, requireRole('doctor'), doctorController.updateAvailability);
+router.put('/fee', authMiddleware, requireRole('doctor'), doctorController.updateFee);
+router.post('/photo', authMiddleware, requireRole('doctor'), doctorController.updatePhoto);
 
 export default router;

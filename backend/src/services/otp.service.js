@@ -3,8 +3,8 @@ import User from '../models/User.js';
 import config from '../config/env.js';
 import { generateOTP, hashOTP, verifyOTP, generateId } from '../utils/helpers.js';
 import logger from '../utils/logger.js';
-import smsService from './sms.service.js';
-import emailService from './email.service.js';
+import { sendOtpSms } from './sms.service.js';
+import { sendOtpEmail } from './email.service.js';
 
 class OTPService {
   // Create OTP record
@@ -67,11 +67,19 @@ class OTPService {
     let sent = false;
 
     try {
-      if (deliveryChannel === 'sms') {
-        sent = await smsService.sendOTP(recipient, otp);
-      } else if (deliveryChannel === 'email') {
-        sent = await emailService.sendOTP(recipient, otp, userName);
-      }
+    if (deliveryChannel === 'sms') {
+  sent = await sendOtpSms({
+    phone: recipient,
+    otp,
+    userName,
+  });
+} else if (deliveryChannel === 'email') {
+  sent = await sendOtpEmail({
+    email: recipient,
+    otp,
+    userName,
+  });
+}  
 
       logger.info(`OTP sent via ${deliveryChannel} to ${recipient}`);
     } catch (error) {

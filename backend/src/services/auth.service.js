@@ -43,13 +43,11 @@ class AuthService {
 
   // Register user
   async register(userData) {
-    // Check if user exists
     const existing = await User.findOne({ email: userData.email });
     if (existing) {
       throw new Error('Email already registered');
     }
 
-    // Create user
     const userId = generateId();
     const hashedPassword = userData.password
       ? await this.hashPassword(userData.password)
@@ -74,7 +72,6 @@ class AuthService {
 
   // Login user
   async login(email, password) {
-    // Find user with password
     const user = await User.findOne({ email }).select('+password');
 
     if (!user) {
@@ -85,17 +82,14 @@ class AuthService {
       throw new Error('Please use OAuth login');
     }
 
-    // Verify password
     const isValid = await this.verifyPassword(password, user.password);
     if (!isValid) {
       throw new Error('Invalid credentials');
     }
 
-    // Update last login
     user.last_login = new Date();
     await user.save();
 
-    // Generate token
     const token = this.generateAccessToken(user);
 
     logger.info(`User logged in: ${user.email}`);
@@ -115,6 +109,31 @@ class AuthService {
   async getUserByEmail(email) {
     const user = await User.findOne({ email }).select('-password');
     return user ? sanitizeUser(user.toObject()) : null;
+  }
+
+  // Generate token for user (OTP login ke baad)
+  async generateTokenForUser(user) {
+    const fullUser = await User.findOne({ id: user.id }).select('-password');
+    if (!fullUser) throw new Error('User not found');
+
+    const token = this.generateAccessToken(fullUser);
+
+    logger.info(`Token generated for user: ${fullUser.email}`);
+    return {
+      token,
+      user: sanitizeUser(fullUser.toObject()),
+    };
+  }
+
+  // ✅ Reset password
+  async resetPassword(userId, newPassword) {
+    const hashedPassword = await this.hashPassword(newPassword);
+    await User.findOneAndUpdate(
+      { id: userId },
+      { $set: { password: hashedPassword, updated_at: new Date() } }
+    );
+    logger.info(`Password reset for user: ${userId}`);
+    return { success: true, message: 'Password reset successfully' };
   }
 
   // Update user

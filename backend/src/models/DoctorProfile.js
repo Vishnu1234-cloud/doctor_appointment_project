@@ -8,15 +8,15 @@ const doctorProfileSchema = new mongoose.Schema(
     },
     specialization: {
       type: [String],
-      default: ['General Physician', 'Gynecologist & Women\'s Health'],
+      default: ['General Physician', "Gynecologist & Women's Health"],
     },
     qualifications: {
       type: String,
       default: 'MD (Ayurveda) | Postgraduate Physician | IMS-BHU Graduate',
     },
-    experience_years: {
-      type: Number,
-      default: 8,
+    degrees: {
+      type: [String],
+      default: ['MD (Ayurveda Samhita & Siddhant)', 'IMS-BHU Graduate'],
     },
     registration_number: {
       type: String,
@@ -34,6 +34,11 @@ const doctorProfileSchema = new mongoose.Schema(
       type: Number,
       default: 100,
     },
+    // ✅ Photo URL (photo_url + image_url dono support)
+    photo_url: {
+      type: String,
+      default: 'https://images.unsplash.com/photo-1594824476967-48c8b964273f',
+    },
     image_url: {
       type: String,
       default: 'https://images.unsplash.com/photo-1594824476967-48c8b964273f',
@@ -44,7 +49,30 @@ const doctorProfileSchema = new mongoose.Schema(
     },
     available_time: {
       type: String,
-      default: '6:00pm to 8:00pm',
+      default: '6:00 PM to 8:00 PM',
+    },
+    // ✅ Structured availability
+    availability: {
+      start_time: { type: String, default: '18:00' },
+      end_time: { type: String, default: '20:00' },
+      days: {
+        type: [String],
+        default: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'],
+      },
+    },
+    // ✅ Doctor status
+    doctor_status: {
+      type: String,
+      enum: ['pending', 'approved', 'rejected', 'suspended'],
+      default: 'approved',
+    },
+    is_accepting_patients: {
+      type: Boolean,
+      default: true,
+    },
+    updated_at: {
+      type: Date,
+      default: Date.now,
     },
   },
   {

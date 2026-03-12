@@ -8,7 +8,6 @@ class AuthController {
     try {
       const { email, full_name, password, phone, role } = req.body;
 
-      // Register user
       const user = await authService.register({
         email,
         full_name,
@@ -18,10 +17,8 @@ class AuthController {
         auth_provider: 'local',
       });
 
-      // For local auth, send OTP for verification
       if (password) {
         try {
-          // Default to email for OTP
           const otpResult = await otpService.sendOTP(
             user.id,
             'email',
@@ -36,7 +33,6 @@ class AuthController {
           });
         } catch (otpError) {
           logger.error('OTP send failed during registration:', otpError.message);
-          // Still return user, OTP send failure shouldn't block registration
           return res.status(201).json({
             ...user,
             message: 'User registered successfully.',
@@ -57,9 +53,7 @@ class AuthController {
   async login(req, res, next) {
     try {
       const { email, password } = req.body;
-
       const result = await authService.login(email, password);
-
       res.json(result);
     } catch (error) {
       if (error.message === 'Invalid credentials' || error.message === 'Please use OAuth login') {
@@ -77,29 +71,23 @@ class AuthController {
   // Request OTP
   async requestOTP(req, res, next) {
     try {
-      const { email, delivery_channel } = req.body; // delivery_channel: 'sms' or 'email'
+      const { email, delivery_channel } = req.body;
 
-      // Get user by email
       const user = await authService.getUserByEmail(email);
-
       if (!user) {
-        // Prevent user enumeration
         return res.json({
           success: true,
           message: 'If an account exists, you will receive an OTP',
         });
       }
 
-      // Determine recipient
       const recipient = delivery_channel === 'sms' ? user.phone : user.email;
-
       if (!recipient) {
         return res.status(400).json({
           detail: `${delivery_channel === 'sms' ? 'Phone number' : 'Email'} not found for this user`,
         });
       }
 
-      // Send OTP
       const result = await otpService.sendOTP(
         user.id,
         delivery_channel,
@@ -107,12 +95,13 @@ class AuthController {
         user.full_name
       );
 
-      res.json(result);
+      // ✅ user_id return karo frontend ke liye
+      res.json({
+        ...result,
+        user_id: user.id,
+      });
     } catch (error) {
-      if (error.message.includes('Too many')) {
-        return res.status(429).json({ detail: error.message });
-      }
-      if (error.message.includes('wait')) {
+      if (error.message.includes('Too many') || error.message.includes('wait')) {
         return res.status(429).json({ detail: error.message });
       }
       next(error);
@@ -125,6 +114,17 @@ class AuthController {
       const { user_id, otp_id, otp } = req.body;
 
       const result = await otpService.verifyOTP(user_id, otp_id, otp);
+
+      // ✅ Token return karo
+      const user = await authService.getUserById(user_id);
+      if (user) {
+        const tokenResult = await authService.generateTokenForUser(user);
+        return res.json({
+          ...result,
+          token: tokenResult.token,
+          user: tokenResult.user,
+        });
+      }
 
       res.json(result);
     } catch (error) {
@@ -147,7 +147,6 @@ class AuthController {
     try {
       const { user_id, delivery_channel } = req.body;
 
-      // Get user
       const user = await authService.getUserById(user_id);
       if (!user) {
         return res.status(404).json({ detail: 'User not found' });
@@ -176,14 +175,11 @@ class AuthController {
     }
   }
 
-  // Google OAuth (placeholder)
-  async googleAuth(req, res) {
-    // TODO: Implement Google OAuth verification
-    res.json({
-      success: true,
-      message: 'Google OAuth endpoint ready for frontend integration',
-    });
-  }
-}
+  // ✅ Forgot Password — Step 1: OTP bhejo
+  async forgotPassword(req, res, next) {
+    try {
+      const { email, delivery_channel } = req.body;
 
-export default new AuthController();
+      const user = await authService.getUserByEmail(email);
+      if (!user) {
+        return res.json
