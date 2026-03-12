@@ -92,14 +92,3 @@ class ReminderService {
 }
 
 export default new ReminderService();
-```
-
----
-
-## STEP 9 — Render Pe Env Variables Add Karo
-```
-Render Dashboard → Backend → Environment:
-
-RESEND_API_KEY   = re_ZKiUCBmm_Je2Wfw5RaQRUxAjAVh2zoQw3
-EMAIL_ENABLED    = true
-EMAIL_FROM       = HealthLine <onboarding@resend.dev>
