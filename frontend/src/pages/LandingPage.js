@@ -15,6 +15,7 @@ export default function LandingPage() {
   const { user } = useAuth();
   const [doctorProfile, setDoctorProfile] = useState(null);
   const [testimonials, setTestimonials] = useState([]);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   useEffect(() => {
     fetchDoctorProfile();
@@ -54,13 +55,17 @@ export default function LandingPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex justify-between items-center">
             <h1 className="text-2xl font-serif font-bold text-primary" data-testid="logo">HealthLine</h1>
+
+            {/* Desktop Nav */}
             <nav className="hidden md:flex space-x-8">
               <a href="#about" className="text-muted-foreground hover:text-primary" data-testid="nav-about">About</a>
               <a href="#services" className="text-muted-foreground hover:text-primary" data-testid="nav-services">Services</a>
               <a href="#testimonials" className="text-muted-foreground hover:text-primary" data-testid="nav-testimonials">Testimonials</a>
               <a href="/blog" className="text-muted-foreground hover:text-primary" data-testid="nav-blog">Blog</a>
             </nav>
-            <div className="flex gap-3">
+
+            {/* Desktop Buttons */}
+            <div className="hidden md:flex gap-3">
               {user ? (
                 <Button
                   onClick={() => navigate(user.role === 'doctor' ? '/doctor/dashboard' : '/patient/dashboard')}
@@ -81,7 +86,43 @@ export default function LandingPage() {
                 </>
               )}
             </div>
+
+            {/* Mobile Hamburger */}
+            <button
+              className="md:hidden flex flex-col gap-1.5 p-2"
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            >
+              <span className={`block w-6 h-0.5 bg-gray-700 transition-all duration-300 ${mobileMenuOpen ? 'rotate-45 translate-y-2' : ''}`}></span>
+              <span className={`block w-6 h-0.5 bg-gray-700 transition-all duration-300 ${mobileMenuOpen ? 'opacity-0' : ''}`}></span>
+              <span className={`block w-6 h-0.5 bg-gray-700 transition-all duration-300 ${mobileMenuOpen ? '-rotate-45 -translate-y-2' : ''}`}></span>
+            </button>
           </div>
+
+          {/* Mobile Menu */}
+          {mobileMenuOpen && (
+            <div className="md:hidden pt-4 pb-2 space-y-2 border-t mt-3">
+              <a href="#about" onClick={() => setMobileMenuOpen(false)} className="block text-muted-foreground hover:text-primary py-2 px-2">About</a>
+              <a href="#services" onClick={() => setMobileMenuOpen(false)} className="block text-muted-foreground hover:text-primary py-2 px-2">Services</a>
+              <a href="#testimonials" onClick={() => setMobileMenuOpen(false)} className="block text-muted-foreground hover:text-primary py-2 px-2">Testimonials</a>
+              <a href="/blog" onClick={() => setMobileMenuOpen(false)} className="block text-muted-foreground hover:text-primary py-2 px-2">Blog</a>
+              <div className="flex gap-3 pt-3">
+                {user ? (
+                  <Button
+                    onClick={() => navigate(user.role === 'doctor' ? '/doctor/dashboard' : '/patient/dashboard')}
+                    variant="outline"
+                    className="rounded-full w-full"
+                  >
+                    Dashboard
+                  </Button>
+                ) : (
+                  <>
+                    <Button onClick={() => navigate('/login')} variant="outline" className="rounded-full flex-1">Login</Button>
+                    <Button onClick={() => navigate('/register')} className="rounded-full flex-1">Get Started</Button>
+                  </>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       </header>
 
@@ -153,7 +194,6 @@ export default function LandingPage() {
                       {doctorProfile.full_name}
                     </h3>
                     <p className="text-muted-foreground mb-4" data-testid="doctor-qualifications">{doctorProfile.qualifications}</p>
-                    
                     <div className="grid grid-cols-2 gap-4 mb-6">
                       <div>
                         <p className="text-sm text-muted-foreground">Specialization</p>
@@ -176,11 +216,9 @@ export default function LandingPage() {
                         </p>
                       </div>
                     </div>
-                    
                     <p className="text-muted-foreground leading-relaxed mb-6" data-testid="doctor-bio">
                       {doctorProfile.bio}
                     </p>
-                    
                     <div className="flex items-center gap-4">
                       <Award className="text-primary" size={24} />
                       <Shield className="text-primary" size={24} />
@@ -205,25 +243,17 @@ export default function LandingPage() {
             <Card className="rounded-3xl border-none bg-slate-50/50 hover:bg-white hover:shadow-lg p-8 group" data-testid="service-video">
               <Video className="text-primary mb-4" size={40} />
               <h3 className="text-2xl font-medium mb-3">Video Consultation</h3>
-              <p className="text-muted-foreground leading-relaxed">
-                HD quality video calls with secure, private consultations
-              </p>
+              <p className="text-muted-foreground leading-relaxed">HD quality video calls with secure, private consultations</p>
             </Card>
-            
             <Card className="rounded-3xl border-none bg-slate-50/50 hover:bg-white hover:shadow-lg p-8 group" data-testid="service-chat">
               <MessageCircle className="text-primary mb-4" size={40} />
               <h3 className="text-2xl font-medium mb-3">Chat Support</h3>
-              <p className="text-muted-foreground leading-relaxed">
-                Real-time messaging for quick medical queries
-              </p>
+              <p className="text-muted-foreground leading-relaxed">Real-time messaging for quick medical queries</p>
             </Card>
-            
             <Card className="rounded-3xl border-none bg-slate-50/50 hover:bg-white hover:shadow-lg p-8 group" data-testid="service-prescription">
               <FileText className="text-primary mb-4" size={40} />
               <h3 className="text-2xl font-medium mb-3">Digital Prescriptions</h3>
-              <p className="text-muted-foreground leading-relaxed">
-                Instant digital prescriptions delivered to your device
-              </p>
+              <p className="text-muted-foreground leading-relaxed">Instant digital prescriptions delivered to your device</p>
             </Card>
           </div>
         </div>
@@ -238,23 +268,17 @@ export default function LandingPage() {
           </div>
           <div className="grid md:grid-cols-3 gap-12">
             <div className="text-center" data-testid="step-1">
-              <div className="w-16 h-16 rounded-full bg-primary text-white flex items-center justify-center text-2xl font-bold mx-auto mb-6">
-                1
-              </div>
+              <div className="w-16 h-16 rounded-full bg-primary text-white flex items-center justify-center text-2xl font-bold mx-auto mb-6">1</div>
               <h3 className="text-xl font-medium mb-3">Book Appointment</h3>
               <p className="text-muted-foreground">Choose your preferred date and time slot</p>
             </div>
             <div className="text-center" data-testid="step-2">
-              <div className="w-16 h-16 rounded-full bg-primary text-white flex items-center justify-center text-2xl font-bold mx-auto mb-6">
-                2
-              </div>
+              <div className="w-16 h-16 rounded-full bg-primary text-white flex items-center justify-center text-2xl font-bold mx-auto mb-6">2</div>
               <h3 className="text-xl font-medium mb-3">Make Payment</h3>
               <p className="text-muted-foreground">Secure online payment with multiple options</p>
             </div>
             <div className="text-center" data-testid="step-3">
-              <div className="w-16 h-16 rounded-full bg-primary text-white flex items-center justify-center text-2xl font-bold mx-auto mb-6">
-                3
-              </div>
+              <div className="w-16 h-16 rounded-full bg-primary text-white flex items-center justify-center text-2xl font-bold mx-auto mb-6">3</div>
               <h3 className="text-xl font-medium mb-3">Start Consultation</h3>
               <p className="text-muted-foreground">Connect with doctor via video or chat</p>
             </div>
@@ -266,7 +290,6 @@ export default function LandingPage() {
       {testimonials.length > 0 && (
         <section id="testimonials" className="py-20 md:py-32" data-testid="testimonials-section">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            {/* Section Header */}
             <div className="text-center mb-12">
               <h2 className="text-4xl md:text-5xl font-serif font-bold text-foreground mb-4" data-testid="testimonials-title">
                 Trusted Patient Experiences
@@ -275,8 +298,6 @@ export default function LandingPage() {
                 Safe, private and professional online medical care
               </p>
             </div>
-
-            {/* Trust Badges */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-16">
               <div className="flex flex-col items-center text-center p-6 rounded-2xl bg-white border border-slate-100" data-testid="trust-badge-secure">
                 <div className="w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center mb-3">
@@ -284,21 +305,18 @@ export default function LandingPage() {
                 </div>
                 <p className="font-medium text-sm">Secure Consultation</p>
               </div>
-
               <div className="flex flex-col items-center text-center p-6 rounded-2xl bg-white border border-slate-100" data-testid="trust-badge-certified">
                 <div className="w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center mb-3">
                   <Award className="text-primary" size={28} />
                 </div>
                 <p className="font-medium text-sm">Certified Doctor</p>
               </div>
-
               <div className="flex flex-col items-center text-center p-6 rounded-2xl bg-white border border-slate-100" data-testid="trust-badge-prescription">
                 <div className="w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center mb-3">
                   <FileText className="text-primary" size={28} />
                 </div>
                 <p className="font-medium text-sm">Digital Prescription</p>
               </div>
-
               <div className="flex flex-col items-center text-center p-6 rounded-2xl bg-white border border-slate-100" data-testid="trust-badge-booking">
                 <div className="w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center mb-3">
                   <Calendar className="text-primary" size={28} />
@@ -306,8 +324,6 @@ export default function LandingPage() {
                 <p className="font-medium text-sm">Easy Booking</p>
               </div>
             </div>
-
-            {/* Testimonial Carousel */}
             <TestimonialCarousel testimonials={testimonials} />
           </div>
         </section>
@@ -342,36 +358,25 @@ export default function LandingPage() {
           </div>
           <Accordion type="single" collapsible className="space-y-4">
             <AccordionItem value="item-1" className="border rounded-2xl px-6" data-testid="faq-1">
-              <AccordionTrigger className="text-left font-medium">
-                How do I book an appointment?
-              </AccordionTrigger>
+              <AccordionTrigger className="text-left font-medium">How do I book an appointment?</AccordionTrigger>
               <AccordionContent className="text-muted-foreground">
                 Simply register on our platform, choose your preferred date and time, make the payment, and you're all set!
               </AccordionContent>
             </AccordionItem>
-            
             <AccordionItem value="item-2" className="border rounded-2xl px-6" data-testid="faq-2">
-              <AccordionTrigger className="text-left font-medium">
-                Is the video consultation secure?
-              </AccordionTrigger>
+              <AccordionTrigger className="text-left font-medium">Is the video consultation secure?</AccordionTrigger>
               <AccordionContent className="text-muted-foreground">
                 Yes, we use encrypted video technology to ensure your consultation is completely private and secure.
               </AccordionContent>
             </AccordionItem>
-            
             <AccordionItem value="item-3" className="border rounded-2xl px-6" data-testid="faq-3">
-              <AccordionTrigger className="text-left font-medium">
-                Can I get a prescription online?
-              </AccordionTrigger>
+              <AccordionTrigger className="text-left font-medium">Can I get a prescription online?</AccordionTrigger>
               <AccordionContent className="text-muted-foreground">
                 Absolutely! After your consultation, the doctor will provide a digital prescription that you can download.
               </AccordionContent>
             </AccordionItem>
-            
             <AccordionItem value="item-4" className="border rounded-2xl px-6" data-testid="faq-4">
-              <AccordionTrigger className="text-left font-medium">
-                What payment methods are accepted?
-              </AccordionTrigger>
+              <AccordionTrigger className="text-left font-medium">What payment methods are accepted?</AccordionTrigger>
               <AccordionContent className="text-muted-foreground">
                 We accept UPI, credit/debit cards, and digital wallets through our secure payment gateway.
               </AccordionContent>
@@ -386,9 +391,7 @@ export default function LandingPage() {
           <div className="grid md:grid-cols-4 gap-8">
             <div>
               <h3 className="text-xl font-serif font-bold text-primary mb-4">HealthLine</h3>
-              <p className="text-muted-foreground text-sm">
-                Your trusted partner in online healthcare consultations.
-              </p>
+              <p className="text-muted-foreground text-sm">Your trusted partner in online healthcare consultations.</p>
             </div>
             <div>
               <h4 className="font-medium mb-4">Quick Links</h4>
@@ -424,7 +427,6 @@ export default function LandingPage() {
   );
 }
 
-// Testimonial Carousel Component (Simplified)
 function TestimonialCarousel({ testimonials }) {
   const [currentIndex, setCurrentIndex] = React.useState(0);
 
@@ -445,19 +447,14 @@ function TestimonialCarousel({ testimonials }) {
             data-testid={`testimonial-slide-${index}`}
           >
             <CardContent className="p-8">
-              {/* Star Rating */}
               <div className="flex mb-6" data-testid={`testimonial-rating-${index}`}>
                 {[...Array(5)].map((_, i) => (
                   <Star key={i} className="text-secondary fill-secondary" size={20} />
                 ))}
               </div>
-
-              {/* Testimonial Text */}
               <p className="text-muted-foreground leading-relaxed mb-6 text-base" data-testid={`testimonial-text-${index}`}>
                 "{testimonial.comment}"
               </p>
-
-              {/* Verified Badge */}
               <div className="flex items-center gap-2 pt-4 border-t border-slate-100">
                 <CheckCircle2 className="text-primary" size={18} />
                 <p className="font-medium text-sm text-foreground" data-testid={`testimonial-badge-${index}`}>
@@ -471,4 +468,3 @@ function TestimonialCarousel({ testimonials }) {
     </div>
   );
 }
-

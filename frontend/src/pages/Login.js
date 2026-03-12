@@ -15,7 +15,6 @@ export default function Login() {
   const navigate = useNavigate();
   const { login, loginWithGoogle } = useAuth();
 
-  // Mode: 'password' ya 'otp'
   const [mode, setMode] = useState('password');
 
   // Password login
@@ -24,7 +23,8 @@ export default function Login() {
 
   // OTP login
   const [otpEmail, setOtpEmail] = useState('');
-  const [otpChannel, setOtpChannel] = useState('sms');
+  const [otpPhone, setOtpPhone] = useState('');
+  const [otpChannel, setOtpChannel] = useState('email');
   const [otpSent, setOtpSent] = useState(false);
   const [userId, setUserId] = useState('');
   const [otpId, setOtpId] = useState('');
@@ -32,7 +32,6 @@ export default function Login() {
 
   const [loading, setLoading] = useState(false);
 
-  // ── Password Login ──────────────────────────────────
   const handlePasswordLogin = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -48,16 +47,23 @@ export default function Login() {
     }
   };
 
-  // ── OTP Step 1: Send OTP ────────────────────────────
   const handleSendOtp = async (e) => {
     e.preventDefault();
     if (!otpEmail) return toast.error('Email daalo pehle');
+    if (otpChannel === 'sms' && !otpPhone) return toast.error('Phone number daalo');
+    if (otpChannel === 'sms' && !/^[6-9]\d{9}$/.test(otpPhone)) {
+      return toast.error('Valid 10 digit Indian phone number daalo');
+    }
     setLoading(true);
     try {
-      const res = await axios.post(`${API}/auth/request-otp`, {
+      const payload = {
         email: otpEmail,
         delivery_channel: otpChannel,
-      });
+      };
+      if (otpChannel === 'sms') {
+        payload.phone = `+91${otpPhone}`;
+      }
+      const res = await axios.post(`${API}/auth/request-otp`, payload);
       setUserId(res.data.user_id);
       setOtpId(res.data.otp_id);
       setOtpSent(true);
@@ -69,7 +75,6 @@ export default function Login() {
     }
   };
 
-  // ── OTP Step 2: Verify OTP ──────────────────────────
   const handleVerifyOtp = async (e) => {
     e.preventDefault();
     if (otp.length !== 6) return toast.error('6 digit OTP daalo');
@@ -94,7 +99,6 @@ export default function Login() {
     }
   };
 
-  // ── Resend OTP ──────────────────────────────────────
   const handleResendOtp = async () => {
     setLoading(true);
     try {
@@ -122,7 +126,7 @@ export default function Login() {
             Sign in to your account
           </p>
 
-          {/* ── Mode Toggle ── */}
+          {/* Mode Toggle */}
           <div className="flex bg-gray-100 rounded-full p-1 mt-3">
             <button
               type="button"
@@ -131,7 +135,7 @@ export default function Login() {
                 mode === 'password' ? 'bg-white shadow text-gray-800' : 'text-gray-500'
               }`}
             >
-              🔑 Password
+              🔒 Password
             </button>
             <button
               type="button"
@@ -147,7 +151,7 @@ export default function Login() {
 
         <CardContent>
 
-          {/* ══ PASSWORD MODE ══════════════════════════════ */}
+          {/* PASSWORD MODE */}
           {mode === 'password' && (
             <form onSubmit={handlePasswordLogin} className="space-y-4">
               <div>
@@ -186,21 +190,44 @@ export default function Login() {
                 {loading ? 'Signing in...' : 'Sign In'}
               </Button>
 
-              {/* ✅ Forgot Password Link */}
               <div className="text-right">
-                <Link
-                  to="/forgot-password"
-                  className="text-sm text-teal-600 hover:underline"
-                >
-                  Password bhool gaye? 🔒
+                <Link to="/forgot-password" className="text-sm text-teal-600 hover:underline">
+                  Password bhool gaye? 🔑
                 </Link>
               </div>
             </form>
           )}
 
-          {/* ══ OTP MODE — Step 1 ══════════════════════════ */}
+          {/* OTP MODE — Step 1 */}
           {mode === 'otp' && !otpSent && (
             <form onSubmit={handleSendOtp} className="space-y-4">
+
+              {/* Channel Select */}
+              <div>
+                <Label>OTP Kahan Bhejein?</Label>
+                <div className="flex bg-gray-100 rounded-xl p-1 mt-1">
+                  <button
+                    type="button"
+                    onClick={() => setOtpChannel('email')}
+                    className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all ${
+                      otpChannel === 'email' ? 'bg-white shadow text-gray-800' : 'text-gray-500'
+                    }`}
+                  >
+                    📧 Email
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setOtpChannel('sms')}
+                    className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all ${
+                      otpChannel === 'sms' ? 'bg-white shadow text-gray-800' : 'text-gray-500'
+                    }`}
+                  >
+                    📱 SMS
+                  </button>
+                </div>
+              </div>
+
+              {/* Email Field — hamesha dikhega */}
               <div>
                 <Label htmlFor="otp-email">Email</Label>
                 <Input
@@ -214,34 +241,36 @@ export default function Login() {
                 />
               </div>
 
-              <div>
-                <Label>OTP Kahan Bhejein?</Label>
-                <div className="flex bg-gray-100 rounded-xl p-1 mt-1">
-                  <button
-                    type="button"
-                    onClick={() => setOtpChannel('sms')}
-                    className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all ${
-                      otpChannel === 'sms' ? 'bg-white shadow text-gray-800' : 'text-gray-500'
-                    }`}
-                  >
-                    📱 SMS
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setOtpChannel('email')}
-                    className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all ${
-                      otpChannel === 'email' ? 'bg-white shadow text-gray-800' : 'text-gray-500'
-                    }`}
-                  >
-                    📧 Email
-                  </button>
+              {/* Phone Field — sirf SMS select karne pe dikhega */}
+              {otpChannel === 'sms' && (
+                <div>
+                  <Label htmlFor="otp-phone">Mobile Number</Label>
+                  <div className="flex gap-2">
+                    <div className="flex items-center justify-center bg-gray-100 rounded-xl px-3 h-12 text-sm font-medium text-gray-600 border border-gray-200">
+                      +91
+                    </div>
+                    <Input
+                      id="otp-phone"
+                      type="tel"
+                      value={otpPhone}
+                      onChange={(e) => setOtpPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                      placeholder="9876543210"
+                      className="rounded-xl h-12 flex-1"
+                      maxLength={10}
+                      required
+                    />
+                  </div>
+                  <p className="text-xs text-gray-400 mt-1">
+                    📱 Registered mobile number pe OTP aayega
+                  </p>
                 </div>
-                <p className="text-xs text-gray-400 text-center mt-1">
-                  {otpChannel === 'sms'
-                    ? '📱 Registered mobile number pe OTP aayega'
-                    : '📧 Email pe OTP aayega'}
+              )}
+
+              {otpChannel === 'email' && (
+                <p className="text-xs text-gray-400 text-center">
+                  📧 Email pe OTP aayega (Spam folder bhi check karein)
                 </p>
-              </div>
+              )}
 
               <Button
                 type="submit"
@@ -253,15 +282,17 @@ export default function Login() {
             </form>
           )}
 
-          {/* ══ OTP MODE — Step 2 ══════════════════════════ */}
+          {/* OTP MODE — Step 2 */}
           {mode === 'otp' && otpSent && (
             <form onSubmit={handleVerifyOtp} className="space-y-4">
               <div className="bg-green-50 border border-green-200 rounded-xl p-3 text-center">
                 <p className="text-sm text-green-700 font-medium">
-                  ✅ OTP bheja: <strong>{otpEmail}</strong>
+                  ✅ OTP bheja gaya!
                 </p>
                 <p className="text-xs text-green-500 mt-1">
-                  {otpChannel === 'sms' ? 'Mobile SMS check karein' : 'Spam folder bhi check karein'}
+                  {otpChannel === 'sms'
+                    ? `📱 +91${otpPhone} pe SMS check karein`
+                    : `📧 ${otpEmail} ka inbox check karein`}
                 </p>
               </div>
 
@@ -307,7 +338,7 @@ export default function Login() {
             </form>
           )}
 
-          {/* ── Divider ── */}
+          {/* Divider */}
           <div className="relative my-6">
             <div className="absolute inset-0 flex items-center">
               <span className="w-full border-t border-gray-200" />
@@ -317,7 +348,7 @@ export default function Login() {
             </div>
           </div>
 
-          {/* ── Google Button ── */}
+          {/* Google Button */}
           <button
             type="button"
             onClick={loginWithGoogle}
