@@ -1,9 +1,8 @@
 import axios from 'axios';
 import config from '../config/env.js';
 import logger from '../utils/logger.js';
-import { formatPhoneNumber, isValidIndianPhone } from '../utils/helpers.js';
+import { formatPhoneNumber, isValidIndianPhone, generateId } from '../utils/helpers.js';
 import NotificationLog from '../models/NotificationLog.js';
-import { generateId } from '../utils/helpers.js';
 
 class SMSService {
   // Send OTP via MSG91
@@ -18,7 +17,6 @@ class SMSService {
       return false;
     }
 
-    // Validate Indian phone number
     if (!isValidIndianPhone(phone)) {
       logger.error('[SMS] Invalid Indian phone number:', phone);
       throw new Error('Invalid Indian phone number format');
@@ -28,8 +26,8 @@ class SMSService {
     const mobileNumber = cleanPhone.startsWith('91') ? cleanPhone : `91${cleanPhone}`;
 
     try {
-      const url = `https://control.msg91.com/api/v5/otp`;
-      
+      const url = 'https://control.msg91.com/api/v5/otp';
+
       const payload = {
         template_id: config.sms.templateId,
         mobile: mobileNumber,
@@ -60,7 +58,6 @@ class SMSService {
     }
   }
 
-  // Log notification
   async logNotification(channel, type, recipient, status, error = null) {
     try {
       await NotificationLog.create({
@@ -77,4 +74,7 @@ class SMSService {
   }
 }
 
-export default new SMSService();
+const smsService = new SMSService();
+
+export const sendOtpSms = (phone, otp) => smsService.sendOTP(phone, otp);
+export default smsService;
