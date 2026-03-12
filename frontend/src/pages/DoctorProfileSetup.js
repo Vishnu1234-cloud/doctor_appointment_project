@@ -274,4 +274,206 @@ export default function DoctorProfileSetup() {
                   value={newLanguage}
                   onChange={(e) => setNewLanguage(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && addLanguage()}
-                  pl
+                  placeholder="Language add karein..."
+                  className="flex-1 border rounded-xl px-4 py-2 text-sm"
+                />
+                <button onClick={addLanguage} className="bg-teal-600 text-white px-4 py-2 rounded-xl text-sm">
+                  + Add
+                </button>
+              </div>
+            </div>
+
+          </div>
+        )}
+
+        {/* ══ QUALIFICATIONS TAB ═════════════════════════ */}
+        {activeTab === 'qualifications' && (
+          <div className="space-y-6">
+
+            {/* Specialization */}
+            <div className="bg-white rounded-2xl border p-6">
+              <h3 className="font-semibold text-gray-700 mb-4">🏥 Specialization</h3>
+              <div className="flex flex-wrap gap-2 mb-3">
+                {form.specialization.map((spec, i) => (
+                  <span key={i} className="bg-blue-50 text-blue-700 px-3 py-1 rounded-full text-sm flex items-center gap-1">
+                    {spec}
+                    <button onClick={() => removeSpecialization(i)} className="text-blue-400 hover:text-red-500 ml-1">×</button>
+                  </span>
+                ))}
+              </div>
+              <div className="flex gap-2">
+                <input
+                  value={newSpecialization}
+                  onChange={(e) => setNewSpecialization(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && addSpecialization()}
+                  placeholder="Specialization add karein..."
+                  className="flex-1 border rounded-xl px-4 py-2 text-sm"
+                />
+                <button onClick={addSpecialization} className="bg-blue-600 text-white px-4 py-2 rounded-xl text-sm">
+                  + Add
+                </button>
+              </div>
+            </div>
+
+            {/* Qualifications */}
+            <div className="bg-white rounded-2xl border p-6">
+              <h3 className="font-semibold text-gray-700 mb-4">📜 Qualifications</h3>
+              <textarea
+                value={form.qualifications}
+                onChange={(e) => setForm(f => ({ ...f, qualifications: e.target.value }))}
+                className="w-full border rounded-xl px-4 py-2 text-sm"
+                rows={3}
+                placeholder="MD (Ayurveda) | Postgraduate Physician | IMS-BHU Graduate"
+              />
+            </div>
+
+            {/* Degrees */}
+            <div className="bg-white rounded-2xl border p-6">
+              <h3 className="font-semibold text-gray-700 mb-4">🎓 Degrees</h3>
+              <div className="flex flex-wrap gap-2 mb-3">
+                {form.degrees.map((deg, i) => (
+                  <span key={i} className="bg-purple-50 text-purple-700 px-3 py-1 rounded-full text-sm flex items-center gap-1">
+                    {deg}
+                    <button onClick={() => removeDegree(i)} className="text-purple-400 hover:text-red-500 ml-1">×</button>
+                  </span>
+                ))}
+              </div>
+              <div className="flex gap-2">
+                <input
+                  value={newDegree}
+                  onChange={(e) => setNewDegree(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && addDegree()}
+                  placeholder="Degree add karein..."
+                  className="flex-1 border rounded-xl px-4 py-2 text-sm"
+                />
+                <button onClick={addDegree} className="bg-purple-600 text-white px-4 py-2 rounded-xl text-sm">
+                  + Add
+                </button>
+              </div>
+            </div>
+
+          </div>
+        )}
+
+        {/* ══ AVAILABILITY TAB ═══════════════════════════ */}
+        {activeTab === 'availability' && (
+          <div className="space-y-6">
+
+            <div className="bg-white rounded-2xl border p-6">
+              <h3 className="font-semibold text-gray-700 mb-4">⏰ Timing</h3>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm text-gray-600 mb-1 block">Start Time</label>
+                  <input
+                    type="time"
+                    value={form.availability.start_time}
+                    onChange={(e) => setForm(f => ({ ...f, availability: { ...f.availability, start_time: e.target.value } }))}
+                    className="w-full border rounded-xl px-4 py-2 text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="text-sm text-gray-600 mb-1 block">End Time</label>
+                  <input
+                    type="time"
+                    value={form.availability.end_time}
+                    onChange={(e) => setForm(f => ({ ...f, availability: { ...f.availability, end_time: e.target.value } }))}
+                    className="w-full border rounded-xl px-4 py-2 text-sm"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-2xl border p-6">
+              <h3 className="font-semibold text-gray-700 mb-4">📆 Available Days</h3>
+              <div className="flex flex-wrap gap-2">
+                {DAYS.map(day => (
+                  <button
+                    key={day}
+                    onClick={() => toggleDay(day)}
+                    className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
+                      form.availability.days.includes(day)
+                        ? 'bg-teal-600 text-white'
+                        : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                    }`}
+                  >
+                    {DAYS_HINDI[day]}
+                  </button>
+                ))}
+              </div>
+              <p className="text-xs text-gray-400 mt-3">
+                Selected: {form.availability.days.map(d => DAYS_HINDI[d]).join(', ')}
+              </p>
+            </div>
+
+            {/* Preview */}
+            <div className="bg-teal-50 border border-teal-200 rounded-2xl p-4">
+              <p className="text-sm text-teal-700 font-medium">
+                📅 Availability Preview:
+              </p>
+              <p className="text-teal-600 mt-1">
+                {form.availability.days.map(d => DAYS_HINDI[d]).join(', ')} •{' '}
+                {form.availability.start_time} - {form.availability.end_time}
+              </p>
+            </div>
+
+          </div>
+        )}
+
+        {/* ══ REVIEWS TAB ════════════════════════════════ */}
+        {activeTab === 'reviews' && (
+          <div className="space-y-4">
+
+            {/* Rating Summary */}
+            <div className="bg-white rounded-2xl border p-6 text-center">
+              <div className="text-5xl font-bold text-teal-600">{avgRating}</div>
+              <div className="text-yellow-500 text-2xl mt-1">
+                {Array(Math.round(avgRating)).fill('⭐').join('')}
+              </div>
+              <p className="text-gray-500 text-sm mt-1">{reviews.length} reviews</p>
+            </div>
+
+            {/* Reviews List */}
+            {reviews.length === 0 ? (
+              <div className="bg-white rounded-2xl border p-8 text-center text-gray-400">
+                Abhi koi review nahi hai
+              </div>
+            ) : (
+              reviews.map((r) => (
+                <div key={r.id} className="bg-white rounded-2xl border p-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="font-medium text-gray-800">{r.patient_name || 'Patient'}</span>
+                    <span className="text-yellow-500">{Array(r.rating).fill('⭐').join('')}</span>
+                  </div>
+                  <p className="text-sm text-gray-600">{r.comment}</p>
+                  {r.doctor_reply && (
+                    <div className="bg-teal-50 rounded-xl p-3 mt-2">
+                      <p className="text-xs text-teal-600 font-medium">Doctor ka reply:</p>
+                      <p className="text-sm text-teal-700">{r.doctor_reply}</p>
+                    </div>
+                  )}
+                  <p className="text-xs text-gray-400 mt-2">
+                    {new Date(r.created_at).toLocaleDateString('hi-IN')}
+                  </p>
+                </div>
+              ))
+            )}
+          </div>
+        )}
+
+        {/* ── Save Button (bottom) ── */}
+        {activeTab !== 'reviews' && (
+          <div className="mt-6">
+            <button
+              onClick={handleSave}
+              disabled={loading}
+              className="w-full bg-teal-600 text-white py-3 rounded-full font-semibold hover:bg-teal-700 transition-colors"
+            >
+              {loading ? 'Save ho raha hai...' : '💾 Profile Save Karein'}
+            </button>
+          </div>
+        )}
+
+      </div>
+    </div>
+  );
+}
