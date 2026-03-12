@@ -25,7 +25,6 @@ class AuthController {
             email,
             full_name
           );
-
           return res.status(201).json({
             ...user,
             otp_id: otpResult.otpId,
@@ -95,7 +94,6 @@ class AuthController {
         user.full_name
       );
 
-      // ✅ user_id return karo frontend ke liye
       res.json({
         ...result,
         user_id: user.id,
@@ -115,7 +113,6 @@ class AuthController {
 
       const result = await otpService.verifyOTP(user_id, otp_id, otp);
 
-      // ✅ Token return karo
       const user = await authService.getUserById(user_id);
       if (user) {
         const tokenResult = await authService.generateTokenForUser(user);
@@ -182,4 +179,83 @@ class AuthController {
 
       const user = await authService.getUserByEmail(email);
       if (!user) {
-        return res.json
+        return res.json({
+          success: true,
+          message: 'If account exists, OTP will be sent',
+        });
+      }
+
+      const recipient = delivery_channel === 'sms' ? user.phone : user.email;
+      if (!recipient) {
+        return res.status(400).json({
+          detail: `${delivery_channel === 'sms' ? 'Phone' : 'Email'} not found`,
+        });
+      }
+
+      const result = await otpService.sendOTP(
+        user.id,
+        delivery_channel,
+        recipient,
+        user.full_name
+      );
+
+      res.json({
+        success: true,
+        user_id: user.id,
+        otp_id: result.otpId,
+        message: `OTP sent to your ${delivery_channel}`,
+      });
+    } catch (error) {
+      if (error.message.includes('Too many') || error.message.includes('wait')) {
+        return res.status(429).json({ detail: error.message });
+      }
+      next(error);
+    }
+  }
+
+  // ✅ Forgot Password — Step 2: Password reset karo
+  async resetPassword(req, res, next) {
+    try {
+      const { user_id, otp_id, otp, new_password } = req.body;
+
+      await otpService.verifyOTP(user_id, otp_id, otp);
+
+      if (new_password.length < 8) {
+        return res.status(400).json({
+          detail: 'Password kam se kam 8 characters ka hona chahiye',
+        });
+      }
+
+      await authService.resetPassword(user_id, new_password);
+
+      const user = await authService.getUserById(user_id);
+      const tokenResult = await authService.generateTokenForUser(user);
+
+      res.json({
+        success: true,
+        message: 'Password successfully reset!',
+        token: tokenResult.token,
+        user: tokenResult.user,
+      });
+    } catch (error) {
+      if (
+        error.message.includes('Invalid') ||
+        error.message.includes('expired') ||
+        error.message.includes('locked')
+      ) {
+        return res.status(400).json({ detail: error.message });
+      }
+      next(error);
+    }
+  }
+
+  // Google OAuth
+  async googleAuth(req, res) {
+    res.json({
+      success: true,
+      message: 'Google OAuth endpoint ready for frontend integration',
+    });
+  }
+}
+
+export default new AuthController();
