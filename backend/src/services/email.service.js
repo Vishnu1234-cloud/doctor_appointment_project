@@ -247,6 +247,7 @@ export const sendOtpEmail = async ({ email, otp, userName }) => {
 
 const emailService = {
   sendAppointmentConfirmationEmail,
+  sendAppointmentEmail: sendAppointmentConfirmationEmail,
   sendAppointmentReminderEmail,
   sendOtpEmail,
 };
