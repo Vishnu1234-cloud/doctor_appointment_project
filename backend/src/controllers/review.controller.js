@@ -17,7 +17,9 @@ export const createReview = async (req, res, next) => {
     }
 
     // Appointment verify karo
-    const appointment = await Appointment.findOne({ id: appointmentId });
+    const appointment = await Appointment.findOne({
+      $or: [{ id: appointmentId }, { _id: appointmentId }]
+    });
     if (!appointment) {
       return res.status(404).json({ detail: 'Appointment nahi mili' });
     }
@@ -41,7 +43,10 @@ export const createReview = async (req, res, next) => {
     });
 
     // Appointment mein mark karo
-    await Appointment.findOneAndUpdate({ id: appointmentId }, { hasReviewed: true });
+    await Appointment.findOneAndUpdate(
+      { $or: [{ id: appointmentId }, { _id: appointmentId }] },
+      { hasReviewed: true }
+    );
 
     res.status(201).json({
       success: true,
@@ -84,7 +89,6 @@ export const getDoctorReviews = async (req, res, next) => {
       isDeleted: false,
     });
 
-    // Average rating
     const allRatings = await Review.find({
       doctor: doctorId,
       isApproved: true,
@@ -125,7 +129,7 @@ export const editReview = async (req, res, next) => {
     review.comment = comment || review.comment;
     review.isEdited = true;
     review.editedAt = new Date();
-    review.isApproved = false; // Re-approval chahiye
+    review.isApproved = false;
     await review.save();
 
     res.json({ success: true, message: 'Review update ho gaya' });
@@ -149,8 +153,10 @@ export const deleteReview = async (req, res, next) => {
     review.isDeleted = true;
     await review.save();
 
-    // Appointment reset karo taaki dobara review de sake
-    await Appointment.findOneAndUpdate({ id: review.appointment }, { hasReviewed: false });
+    await Appointment.findOneAndUpdate(
+      { $or: [{ id: review.appointment }, { _id: review.appointment }] },
+      { hasReviewed: false }
+    );
 
     res.json({ success: true, message: 'Review delete ho gaya' });
   } catch (err) {
