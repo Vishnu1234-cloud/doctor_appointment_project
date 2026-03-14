@@ -1,9 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAuth } from '@/context/AuthContext';
 import { toast } from 'sonner';
 import axios from 'axios';
@@ -11,372 +7,491 @@ import axios from 'axios';
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8001';
 const API = `${BACKEND_URL}/api`;
 
-export default function Login() {
-  const navigate = useNavigate();
-  const { login, loginWithGoogle } = useAuth();
+// ── Eye Icon ───────────────────────────────────────────
+const EyeIcon = ({ open }) => open ? (
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
+    <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
+    <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+  </svg>
+) : (
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
+    <path strokeLinecap="round" strokeLinejoin="round" d="M3.98 8.223A10.477 10.477 0 001.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.45 10.45 0 0112 4.5c4.756 0 8.773 3.162 10.065 7.498a10.523 10.523 0 01-4.293 5.774M6.228 6.228L3 3m3.228 3.228l3.65 3.65m7.894 7.894L21 21m-3.228-3.228l-3.65-3.65m0 0a3 3 0 10-4.243-4.243m4.242 4.242L9.88 9.88" />
+  </svg>
+);
 
-  const [mode, setMode] = useState('password');
+// ── Google Icon ────────────────────────────────────────
+const GoogleIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 48 48">
+    <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+    <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+    <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
+    <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+  </svg>
+);
 
-  // Password login
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+const Spinner = () => (
+  <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 12 0 12h0a8 8 0 018 8z"/>
+  </svg>
+);
 
-  // OTP login
-  const [otpEmail, setOtpEmail] = useState('');
-  const [otpPhone, setOtpPhone] = useState('');
-  const [otpChannel, setOtpChannel] = useState('email');
-  const [otpSent, setOtpSent] = useState(false);
-  const [userId, setUserId] = useState('');
-  const [otpId, setOtpId] = useState('');
-  const [otp, setOtp] = useState('');
+const medicalImages = [
+  'https://images.unsplash.com/photo-1559839734-2b71ea197ec2?w=400&q=80',
+  'https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?w=400&q=80',
+  'https://images.unsplash.com/photo-1666214280557-f1b5022eb634?w=400&q=80',
+  'https://images.unsplash.com/photo-1631217868264-e5b90bb7e133?w=400&q=80',
+  'https://images.unsplash.com/photo-1530026405186-ed1f139313f8?w=400&q=80',
+  'https://images.unsplash.com/photo-1579684385127-1ef15d508118?w=400&q=80',
+];
 
+// ── Forgot Password Modal ──────────────────────────────
+function ForgotPasswordModal({ onClose }) {
+  const [forgotEmail, setForgotEmail] = useState('');
+  const [forgotPhone, setForgotPhone] = useState('');
   const [loading, setLoading] = useState(false);
+  const [sent, setSent] = useState(false);
+  const [error, setError] = useState('');
 
-  const handlePasswordLogin = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    try {
-      const user = await login(email, password);
-      toast.success('Login successful!');
-      if (user?.role === 'doctor') navigate('/doctor/dashboard');
-      else navigate('/patient/dashboard');
-    } catch (error) {
-      toast.error(error?.response?.data?.detail || 'Invalid email or password');
-    } finally {
-      setLoading(false);
-    }
-  };
+  useEffect(() => {
+    const handleKey = (e) => { if (e.key === 'Escape') onClose(); };
+    document.addEventListener('keydown', handleKey);
+    return () => document.removeEventListener('keydown', handleKey);
+  }, [onClose]);
 
-  const handleSendOtp = async (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!otpEmail) return toast.error('Email daalo pehle');
-    if (otpChannel === 'sms' && !otpPhone) return toast.error('Phone number daalo');
-    if (otpChannel === 'sms' && !/^[6-9]\d{9}$/.test(otpPhone)) {
-      return toast.error('Valid 10 digit Indian phone number daalo');
+    setError('');
+    if (!forgotEmail && !forgotPhone) {
+      setError('Please enter your email or mobile number.');
+      return;
     }
     setLoading(true);
     try {
-      const payload = {
-        email: otpEmail,
-        delivery_channel: otpChannel,
-      };
-      if (otpChannel === 'sms') {
-        payload.phone = `+91${otpPhone}`;
-      }
-      const res = await axios.post(`${API}/auth/request-otp`, payload);
-      setUserId(res.data.user_id);
-      setOtpId(res.data.otp_id);
-      setOtpSent(true);
-      toast.success(`OTP aapke ${otpChannel === 'sms' ? 'mobile' : 'email'} pe bhej diya gaya!`);
-    } catch (err) {
-      toast.error(err?.response?.data?.detail || 'OTP send nahi ho saka');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleVerifyOtp = async (e) => {
-    e.preventDefault();
-    if (otp.length !== 6) return toast.error('6 digit OTP daalo');
-    setLoading(true);
-    try {
-      const res = await axios.post(`${API}/auth/verify-otp`, {
-        user_id: userId,
-        otp_id: otpId,
-        otp,
+      await axios.post(`${API}/auth/forgot-password`, {
+        email: forgotEmail || undefined,
+        phone: forgotPhone ? `+91${forgotPhone}` : undefined,
+        delivery_channel: forgotEmail ? 'email' : 'sms',
       });
-
-      const token = res.data.token;
-      localStorage.setItem('token', token);
-      axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-
-      toast.success('Login successful!');
-      window.location.reload();
+      setSent(true);
     } catch (err) {
-      toast.error(err?.response?.data?.detail || 'OTP galat hai ya expire ho gaya');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleResendOtp = async () => {
-    setLoading(true);
-    try {
-      const res = await axios.post(`${API}/auth/resend-otp`, {
-        user_id: userId,
-        delivery_channel: otpChannel,
-      });
-      setOtpId(res.data.otp_id);
-      toast.success('Naya OTP bhej diya!');
-    } catch (err) {
-      toast.error('OTP resend nahi ho saka');
+      setError(err?.response?.data?.detail || 'Something went wrong. Please try again.');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-accent/30 px-4" data-testid="login-page">
-      <Card className="w-full max-w-md rounded-3xl border-none shadow-lg" data-testid="login-card">
-        <CardHeader>
-          <CardTitle className="text-3xl font-serif text-center" data-testid="login-title">
-            Welcome Back
-          </CardTitle>
-          <p className="text-center text-muted-foreground" data-testid="login-subtitle">
-            Sign in to your account
-          </p>
-
-          {/* Mode Toggle */}
-          <div className="flex bg-gray-100 rounded-full p-1 mt-3">
-            <button
-              type="button"
-              onClick={() => { setMode('password'); setOtpSent(false); }}
-              className={`flex-1 py-2 rounded-full text-sm font-medium transition-all ${
-                mode === 'password' ? 'bg-white shadow text-gray-800' : 'text-gray-500'
-              }`}
-            >
-              🔒 Password
-            </button>
-            <button
-              type="button"
-              onClick={() => { setMode('otp'); setOtpSent(false); }}
-              className={`flex-1 py-2 rounded-full text-sm font-medium transition-all ${
-                mode === 'otp' ? 'bg-white shadow text-gray-800' : 'text-gray-500'
-              }`}
-            >
-              📱 OTP
-            </button>
-          </div>
-        </CardHeader>
-
-        <CardContent>
-
-          {/* PASSWORD MODE */}
-          {mode === 'password' && (
-            <form onSubmit={handlePasswordLogin} className="space-y-4">
-              <div>
-                <Label htmlFor="email">Email</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="your@email.com"
-                  className="rounded-xl h-12"
-                  required
-                  data-testid="login-email-input"
-                />
-              </div>
-              <div>
-                <Label htmlFor="password">Password</Label>
-                <Input
-                  id="password"
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••"
-                  className="rounded-xl h-12"
-                  required
-                  data-testid="login-password-input"
-                />
-              </div>
-
-              <Button
-                type="submit"
-                className="w-full rounded-full h-12"
-                disabled={loading}
-                data-testid="login-submit-button"
-              >
-                {loading ? 'Signing in...' : 'Sign In'}
-              </Button>
-
-              <div className="text-right">
-                <Link to="/forgot-password" className="text-sm text-teal-600 hover:underline">
-                  Password bhool gaye? 🔑
-                </Link>
-              </div>
-            </form>
-          )}
-
-          {/* OTP MODE — Step 1 */}
-          {mode === 'otp' && !otpSent && (
-            <form onSubmit={handleSendOtp} className="space-y-4">
-
-              {/* Channel Select */}
-              <div>
-                <Label>OTP Kahan Bhejein?</Label>
-                <div className="flex bg-gray-100 rounded-xl p-1 mt-1">
-                  <button
-                    type="button"
-                    onClick={() => setOtpChannel('email')}
-                    className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all ${
-                      otpChannel === 'email' ? 'bg-white shadow text-gray-800' : 'text-gray-500'
-                    }`}
-                  >
-                    📧 Email
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setOtpChannel('sms')}
-                    className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all ${
-                      otpChannel === 'sms' ? 'bg-white shadow text-gray-800' : 'text-gray-500'
-                    }`}
-                  >
-                    📱 SMS
-                  </button>
-                </div>
-              </div>
-
-              {/* Email Field — hamesha dikhega */}
-              <div>
-                <Label htmlFor="otp-email">Email</Label>
-                <Input
-                  id="otp-email"
-                  type="email"
-                  value={otpEmail}
-                  onChange={(e) => setOtpEmail(e.target.value)}
-                  placeholder="your@email.com"
-                  className="rounded-xl h-12"
-                  required
-                />
-              </div>
-
-              {/* Phone Field — sirf SMS select karne pe dikhega */}
-              {otpChannel === 'sms' && (
-                <div>
-                  <Label htmlFor="otp-phone">Mobile Number</Label>
-                  <div className="flex gap-2">
-                    <div className="flex items-center justify-center bg-gray-100 rounded-xl px-3 h-12 text-sm font-medium text-gray-600 border border-gray-200">
-                      +91
-                    </div>
-                    <Input
-                      id="otp-phone"
-                      type="tel"
-                      value={otpPhone}
-                      onChange={(e) => setOtpPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
-                      placeholder="9876543210"
-                      className="rounded-xl h-12 flex-1"
-                      maxLength={10}
-                      required
-                    />
-                  </div>
-                  <p className="text-xs text-gray-400 mt-1">
-                    📱 Registered mobile number pe OTP aayega
-                  </p>
-                </div>
-              )}
-
-              {otpChannel === 'email' && (
-                <p className="text-xs text-gray-400 text-center">
-                  📧 Email pe OTP aayega (Spam folder bhi check karein)
-                </p>
-              )}
-
-              <Button
-                type="submit"
-                className="w-full rounded-full h-12"
-                disabled={loading}
-              >
-                {loading ? 'Bhej raha hai...' : '📨 OTP Bhejo'}
-              </Button>
-            </form>
-          )}
-
-          {/* OTP MODE — Step 2 */}
-          {mode === 'otp' && otpSent && (
-            <form onSubmit={handleVerifyOtp} className="space-y-4">
-              <div className="bg-green-50 border border-green-200 rounded-xl p-3 text-center">
-                <p className="text-sm text-green-700 font-medium">
-                  ✅ OTP bheja gaya!
-                </p>
-                <p className="text-xs text-green-500 mt-1">
-                  {otpChannel === 'sms'
-                    ? `📱 +91${otpPhone} pe SMS check karein`
-                    : `📧 ${otpEmail} ka inbox check karein`}
-                </p>
-              </div>
-
-              <div>
-                <Label htmlFor="otp-code">6-Digit OTP</Label>
-                <Input
-                  id="otp-code"
-                  type="text"
-                  value={otp}
-                  onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                  placeholder="123456"
-                  className="rounded-xl h-12 text-center text-2xl tracking-widest font-mono"
-                  maxLength={6}
-                  required
-                />
-              </div>
-
-              <Button
-                type="submit"
-                className="w-full rounded-full h-12"
-                disabled={loading || otp.length !== 6}
-              >
-                {loading ? 'Verify ho raha hai...' : '✅ OTP Verify Karo'}
-              </Button>
-
-              <div className="flex items-center justify-between text-sm">
-                <button
-                  type="button"
-                  onClick={() => { setOtpSent(false); setOtp(''); }}
-                  className="text-gray-400 hover:text-gray-600"
-                >
-                  ← Wapas jao
-                </button>
-                <button
-                  type="button"
-                  onClick={handleResendOtp}
-                  disabled={loading}
-                  className="text-teal-600 hover:underline"
-                >
-                  OTP dobara bhejo
-                </button>
-              </div>
-            </form>
-          )}
-
-          {/* Divider */}
-          <div className="relative my-6">
-            <div className="absolute inset-0 flex items-center">
-              <span className="w-full border-t border-gray-200" />
-            </div>
-            <div className="relative flex justify-center text-sm">
-              <span className="bg-white px-3 text-gray-400">Ya phir</span>
-            </div>
-          </div>
-
-          {/* Google Button */}
+    <div
+      style={{ position: 'fixed', inset: 0, zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.45)' }}
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div
+        style={{ background: '#fff', borderRadius: 8, boxShadow: '0 20px 60px rgba(0,0,0,0.2)', width: '100%', maxWidth: 420, margin: '0 16px', animation: 'modalIn 0.2s ease', position: 'relative' }}
+      >
+        {/* Header */}
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', padding: '28px 28px 16px' }}>
+          <h2 style={{ fontSize: 22, fontWeight: 700, color: '#1f2937', margin: 0 }}>Forgot your Password ?</h2>
           <button
-            type="button"
-            onClick={loginWithGoogle}
-            className="w-full flex items-center justify-center gap-3 border border-gray-300 rounded-full h-12 hover:bg-gray-50 transition-colors"
-            data-testid="google-login-button"
+            onClick={onClose}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 24, color: '#9ca3af', lineHeight: 1, padding: '0 0 0 12px', marginTop: -2 }}
+            aria-label="Close"
           >
-            <svg width="20" height="20" viewBox="0 0 48 48">
-              <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
-              <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
-              <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
-              <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
-            </svg>
-            <span className="text-gray-700 font-medium">Google se Login Karo</span>
+            ×
           </button>
+        </div>
 
-          <p className="text-center text-sm text-muted-foreground mt-6">
-            Don't have an account?{' '}
-            <Link to="/register" className="text-primary font-medium" data-testid="register-link">
-              Register here
-            </Link>
-          </p>
-          <p className="text-center text-sm text-muted-foreground mt-2">
-            <Link to="/" className="text-primary" data-testid="home-link">
-              ← Back to Home
-            </Link>
-          </p>
-        </CardContent>
-      </Card>
+        <div style={{ padding: '0 28px 28px' }}>
+          {!sent ? (
+            <>
+              <p style={{ fontSize: 14, color: '#6b7280', marginBottom: 20, lineHeight: 1.6 }}>
+                Enter your email address or mobile number and we'll send you a link or OTP to reset your password.
+              </p>
+              <form onSubmit={handleSubmit}>
+                <input
+                  type="email"
+                  value={forgotEmail}
+                  onChange={(e) => { setForgotEmail(e.target.value); setForgotPhone(''); setError(''); }}
+                  placeholder="Enter Your Email"
+                  style={{ width: '100%', padding: '12px 14px', border: '1px solid #d1d5db', borderRadius: 4, fontSize: 14, outline: 'none', marginBottom: 4, boxSizing: 'border-box' }}
+                  onFocus={(e) => e.target.style.borderColor = '#3b6fd4'}
+                  onBlur={(e) => e.target.style.borderColor = '#d1d5db'}
+                />
+                <div style={{ textAlign: 'center', color: '#6b7280', fontSize: 14, fontWeight: 500, margin: '12px 0' }}>(OR)</div>
+                <input
+                  type="tel"
+                  value={forgotPhone}
+                  onChange={(e) => { setForgotPhone(e.target.value.replace(/\D/g, '').slice(0, 10)); setForgotEmail(''); setError(''); }}
+                  placeholder="Enter Your Mobile No."
+                  style={{ width: '100%', padding: '12px 14px', border: '1px solid #d1d5db', borderRadius: 4, fontSize: 14, outline: 'none', marginBottom: 4, boxSizing: 'border-box' }}
+                  onFocus={(e) => e.target.style.borderColor = '#3b6fd4'}
+                  onBlur={(e) => e.target.style.borderColor = '#d1d5db'}
+                  maxLength={10}
+                />
+                {error && <p style={{ color: '#dc2626', fontSize: 13, marginTop: 8, marginBottom: 0 }}>{error}</p>}
+                <button
+                  type="submit"
+                  disabled={loading || (!forgotEmail && !forgotPhone)}
+                  style={{ marginTop: 20, width: '100%', padding: '12px', background: '#3b6fd4', color: '#fff', border: 'none', borderRadius: 4, fontSize: 14, fontWeight: 700, letterSpacing: '0.08em', cursor: loading ? 'not-allowed' : 'pointer', opacity: (loading || (!forgotEmail && !forgotPhone)) ? 0.6 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
+                >
+                  {loading ? <><Spinner /> SENDING...</> : 'SUBMIT'}
+                </button>
+              </form>
+            </>
+          ) : (
+            <div style={{ textAlign: 'center', padding: '20px 0' }}>
+              <div style={{ width: 60, height: 60, borderRadius: '50%', background: '#f0fdf4', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
+                <svg style={{ width: 28, height: 28, color: '#16a34a' }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
+              <p style={{ fontWeight: 700, fontSize: 18, color: '#15803d', marginBottom: 8 }}>OTP Sent!</p>
+              <p style={{ color: '#6b7280', fontSize: 14, marginBottom: 24 }}>
+                Check your {forgotEmail ? 'email inbox' : 'SMS messages'} for the reset OTP.
+              </p>
+              <button
+                onClick={onClose}
+                style={{ padding: '10px 32px', background: '#3b6fd4', color: '#fff', border: 'none', borderRadius: 4, fontSize: 14, fontWeight: 600, cursor: 'pointer' }}
+              >
+                Back to Login
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
+  );
+}
+
+// ── Main Login Component ───────────────────────────────
+export default function Login() {
+  const navigate = useNavigate();
+  const { login, loginWithGoogle } = useAuth();
+
+  const [identifier, setIdentifier] = useState('');
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [pwLoading, setPwLoading] = useState(false);
+  const [pwError, setPwError] = useState('');
+
+  const [otpChannel, setOtpChannel] = useState('email');
+  const [otpPhone, setOtpPhone] = useState('');
+  const [otpSent, setOtpSent] = useState(false);
+  const [userId, setUserId] = useState('');
+  const [otpId, setOtpId] = useState('');
+  const [otp, setOtp] = useState('');
+  const [otpLoading, setOtpLoading] = useState(false);
+
+  const [showForgot, setShowForgot] = useState(false);
+
+  const isEmail = (v) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
+  const isPhone = (v) => /^[6-9]\d{9}$/.test(v);
+
+  const handlePasswordLogin = async (e) => {
+    e.preventDefault();
+    setPwError('');
+    if (!identifier.trim()) { setPwError('Email or mobile number is required.'); return; }
+    if (!password) { setPwError('Password is required.'); return; }
+    setPwLoading(true);
+    try {
+      const user = await login(identifier, password);
+      toast.success('Welcome back!');
+      if (user?.role === 'doctor') navigate('/doctor/dashboard');
+      else navigate('/patient/dashboard');
+    } catch (error) {
+      const msg = error?.response?.data?.detail || '';
+      if (msg.toLowerCase().includes('oauth') || msg.toLowerCase().includes('google')) {
+        setPwError('This account uses Google Sign-In. Please use "Continue with Google".');
+      } else {
+        setPwError('Invalid credentials. Please check and try again.');
+      }
+    } finally {
+      setPwLoading(false);
+    }
+  };
+
+  const handleSendOtp = async () => {
+    if (!identifier.trim()) { toast.error('Please enter your email or mobile number first.'); return; }
+    setOtpLoading(true);
+    try {
+      const payload = { email: identifier, delivery_channel: otpChannel };
+      if (otpChannel === 'sms') payload.phone = `+91${otpPhone || identifier}`;
+      const res = await axios.post(`${API}/auth/request-otp`, payload);
+      setUserId(res.data.user_id);
+      setOtpId(res.data.otp_id);
+      setOtpSent(true);
+      toast.success(`OTP sent to your ${otpChannel === 'sms' ? 'mobile' : 'email'}!`);
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || 'Failed to send OTP.');
+    } finally {
+      setOtpLoading(false);
+    }
+  };
+
+  const handleOtpLogin = async () => {
+    if (otp.length !== 6) { toast.error('Enter the 6-digit OTP.'); return; }
+    setOtpLoading(true);
+    try {
+      const res = await axios.post(`${API}/auth/verify-otp`, { user_id: userId, otp_id: otpId, otp });
+      localStorage.setItem('token', res.data.token);
+      axios.defaults.headers.common['Authorization'] = `Bearer ${res.data.token}`;
+      toast.success('Login successful!');
+      window.location.reload();
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || 'Invalid or expired OTP.');
+    } finally {
+      setOtpLoading(false);
+    }
+  };
+
+  const handleResendOtp = async () => {
+    setOtpLoading(true);
+    try {
+      const res = await axios.post(`${API}/auth/resend-otp`, { user_id: userId, delivery_channel: otpChannel });
+      setOtpId(res.data.otp_id);
+      toast.success('New OTP sent!');
+    } catch { toast.error('Failed to resend OTP.'); }
+    finally { setOtpLoading(false); }
+  };
+
+  const s = {
+    page: { minHeight: '100vh', display: 'flex', background: '#fff', fontFamily: "'Inter', -apple-system, sans-serif" },
+    left: { width: '55%', padding: '32px 40px', background: '#f0f6ff', position: 'relative', overflow: 'hidden', display: 'flex', flexDirection: 'column' },
+    right: { flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '40px 48px' },
+    formWrap: { width: '100%', maxWidth: 360 },
+    title: { fontSize: 26, fontWeight: 700, color: '#1e3a5f', marginBottom: 28 },
+    label: { display: 'block', fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 6 },
+    input: { width: '100%', padding: '11px 14px', border: '1px solid #d1d5db', borderRadius: 4, fontSize: 14, outline: 'none', boxSizing: 'border-box', color: '#1f2937', background: '#fff', transition: 'border-color .2s' },
+    btn: { width: '100%', padding: '12px', background: '#3b6fd4', color: '#fff', border: 'none', borderRadius: 4, fontSize: 15, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 },
+    otpBtn: { padding: '10px 20px', background: '#3b6fd4', color: '#fff', border: 'none', borderRadius: 4, fontSize: 13, fontWeight: 600, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 },
+    or: { textAlign: 'center', color: '#6b7280', fontSize: 14, fontWeight: 500, margin: '18px 0' },
+    link: { color: '#3b6fd4', fontWeight: 600, textDecoration: 'none', fontSize: 14 },
+    googleBtn: { width: '100%', padding: '11px', border: '1.5px solid #d1d5db', borderRadius: 4, background: '#fff', cursor: 'pointer', fontSize: 14, fontWeight: 500, color: '#374151', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10 },
+    imgBox: { overflow: 'hidden', borderRadius: 8 },
+    imgEl: { width: '100%', height: '100%', objectFit: 'cover', display: 'block' },
+    navyBox: { borderRadius: 8, background: 'linear-gradient(135deg,#1e3a5f,#2d4a7a)' },
+    blueBox: { borderRadius: 8, background: 'linear-gradient(135deg,#3b6fd4,#1e3a5f)' },
+    dotGrid: { display: 'grid', gridTemplateColumns: 'repeat(24,1fr)', gap: 5, opacity: 0.25, marginTop: 16 },
+    dot: { width: 4, height: 4, borderRadius: '50%', background: '#3b6fd4' },
+  };
+
+  return (
+    <>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        @keyframes modalIn { from { opacity:0; transform:translateY(-12px) scale(.97); } to { opacity:1; transform:translateY(0) scale(1); } }
+        input:focus { border-color: #3b6fd4 !important; box-shadow: 0 0 0 3px rgba(59,111,212,.1); }
+        .hl-otp-ch { flex:1; padding:9px 8px; border:1.5px solid #d1d5db; borderRadius:4px; font-size:13px; font-weight:500; cursor:pointer; background:#fff; color:#6b7280; transition:all .15s; border-radius:4px; }
+        .hl-otp-ch:hover { border-color:#3b6fd4; }
+        .hl-otp-ch.active { border-color:#3b6fd4; background:#eff4ff; color:#3b6fd4; font-weight:600; }
+        .hl-hover-btn:hover:not(:disabled) { background:#2d5bb8 !important; }
+        .hl-hover-btn:disabled { opacity:.6; cursor:not-allowed; }
+        .hl-google:hover { background:#f9fafb !important; }
+      `}</style>
+
+      <div style={s.page}>
+
+        {/* LEFT — Image collage */}
+        <div style={s.left} className="hidden lg:flex lg:flex-col">
+          {/* Logo */}
+          <Link to="/" style={{ display: 'inline-flex', alignItems: 'center', gap: 8, textDecoration: 'none', marginBottom: 32 }}>
+            <div style={{ width: 34, height: 34, borderRadius: 8, background: 'linear-gradient(135deg,#0d9488,#3b6fd4)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="white" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+              </svg>
+            </div>
+            <span style={{ fontSize: 20, fontWeight: 700, color: '#1e3a5f' }}>HealthLine</span>
+          </Link>
+
+          {/* Row 1 */}
+          <div style={{ display: 'grid', gridTemplateColumns: '90px 1fr 110px', gap: 10, marginBottom: 10 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', paddingBottom: 0 }}>
+              <div style={{ ...s.imgBox, height: 90, marginLeft: 10 }}>
+                <img src={medicalImages[0]} alt="" style={s.imgEl} />
+              </div>
+            </div>
+            <div style={{ ...s.imgBox, height: 200 }}>
+              <img src={medicalImages[1]} alt="" style={s.imgEl} />
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div style={{ ...s.imgBox, flex: 1 }}>
+                <img src={medicalImages[2]} alt="" style={s.imgEl} />
+              </div>
+              <div style={{ ...s.blueBox, flex: 1 }} />
+            </div>
+          </div>
+
+          {/* Row 2 */}
+          <div style={{ display: 'grid', gridTemplateColumns: '70px 130px 1fr 110px', gap: 10, height: 150 }}>
+            <div style={{ ...s.navyBox, alignSelf: 'flex-start', height: 90, marginTop: 30 }} />
+            <div style={{ ...s.imgBox }}>
+              <img src={medicalImages[3]} alt="" style={s.imgEl} />
+            </div>
+            <div style={{ ...s.imgBox }}>
+              <img src={medicalImages[4]} alt="" style={s.imgEl} />
+            </div>
+            <div style={{ ...s.imgBox, alignSelf: 'flex-end', height: 90 }}>
+              <img src={medicalImages[5]} alt="" style={s.imgEl} />
+            </div>
+          </div>
+
+          {/* Dots */}
+          <div style={s.dotGrid}>
+            {Array.from({ length: 96 }).map((_, i) => <div key={i} style={s.dot} />)}
+          </div>
+        </div>
+
+        {/* RIGHT — Login Form */}
+        <div style={s.right}>
+          <div style={s.formWrap}>
+
+            {/* Mobile logo */}
+            <div className="lg:hidden" style={{ marginBottom: 24 }}>
+              <Link to="/" style={{ textDecoration: 'none', fontSize: 22, fontWeight: 700, color: '#1e3a5f' }}>HealthLine</Link>
+            </div>
+
+            <h2 style={s.title}>Login to HealthLine</h2>
+
+            <form onSubmit={handlePasswordLogin}>
+              {/* Email/Mobile */}
+              <div style={{ marginBottom: 16 }}>
+                <label style={s.label}>Email ID or Mobile Number</label>
+                <input
+                  type="text"
+                  value={identifier}
+                  onChange={(e) => { setIdentifier(e.target.value); setPwError(''); }}
+                  placeholder="Enter your Email ID or Mobile Number"
+                  style={s.input}
+                  autoFocus
+                  autoComplete="username"
+                />
+              </div>
+
+              {/* Password */}
+              <div style={{ marginBottom: 4 }}>
+                <label style={s.label}>Password</label>
+                <div style={{ position: 'relative' }}>
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    value={password}
+                    onChange={(e) => { setPassword(e.target.value); setPwError(''); }}
+                    placeholder="Enter your Password"
+                    style={{ ...s.input, paddingRight: 44 }}
+                    autoComplete="current-password"
+                  />
+                  <button type="button" onClick={() => setShowPassword(!showPassword)}
+                    style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: '#9ca3af', padding: 0, display: 'flex' }}
+                    tabIndex={-1}>
+                    <EyeIcon open={showPassword} />
+                  </button>
+                </div>
+              </div>
+
+              {/* Error */}
+              {pwError && (
+                <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 4, padding: '9px 13px', fontSize: 13, color: '#dc2626', marginTop: 8 }}>
+                  {pwError}
+                </div>
+              )}
+
+              {/* Forgot password */}
+              <div style={{ textAlign: 'right', marginTop: 10, marginBottom: 4 }}>
+                <button type="button" onClick={() => setShowForgot(true)}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#3b6fd4', fontWeight: 500, fontSize: 14 }}>
+                  Forgot password?
+                </button>
+              </div>
+
+              {/* Divider OR */}
+              <div style={s.or}>(OR)</div>
+
+              {/* OTP Section */}
+              <div style={{ marginBottom: 20 }}>
+                <label style={{ ...s.label, marginBottom: 10 }}>Login with OTP</label>
+
+                {/* Channel select */}
+                <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+                  <button type="button" className={`hl-otp-ch ${otpChannel === 'email' ? 'active' : ''}`} onClick={() => setOtpChannel('email')} style={{ flex: 1, padding: '9px 8px', border: `1.5px solid ${otpChannel === 'email' ? '#3b6fd4' : '#d1d5db'}`, borderRadius: 4, fontSize: 13, fontWeight: 500, cursor: 'pointer', background: otpChannel === 'email' ? '#eff4ff' : '#fff', color: otpChannel === 'email' ? '#3b6fd4' : '#6b7280' }}>
+                    📧 Email OTP
+                  </button>
+                  <button type="button" className={`hl-otp-ch ${otpChannel === 'sms' ? 'active' : ''}`} onClick={() => setOtpChannel('sms')} style={{ flex: 1, padding: '9px 8px', border: `1.5px solid ${otpChannel === 'sms' ? '#3b6fd4' : '#d1d5db'}`, borderRadius: 4, fontSize: 13, fontWeight: 500, cursor: 'pointer', background: otpChannel === 'sms' ? '#eff4ff' : '#fff', color: otpChannel === 'sms' ? '#3b6fd4' : '#6b7280' }}>
+                    📱 SMS OTP
+                  </button>
+                </div>
+
+                {/* Phone for SMS */}
+                {otpChannel === 'sms' && !otpSent && (
+                  <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+                    <span style={{ display: 'flex', alignItems: 'center', padding: '0 12px', border: '1px solid #d1d5db', borderRadius: 4, background: '#f9fafb', fontSize: 14, fontWeight: 600, color: '#374151', whiteSpace: 'nowrap' }}>+91</span>
+                    <input type="tel" value={otpPhone} onChange={(e) => setOtpPhone(e.target.value.replace(/\D/g, '').slice(0, 10))} placeholder="Mobile number" style={s.input} maxLength={10} />
+                  </div>
+                )}
+
+                {/* OTP input after send */}
+                {otpSent && (
+                  <div style={{ marginBottom: 10 }}>
+                    <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 4, padding: '8px 12px', fontSize: 13, color: '#15803d', marginBottom: 10 }}>
+                      ✅ OTP sent to your {otpChannel === 'sms' ? `mobile +91${otpPhone}` : identifier}
+                    </div>
+                    <input
+                      type="text"
+                      value={otp}
+                      onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                      placeholder="Enter OTP"
+                      style={{ ...s.input, letterSpacing: '0.25em', fontSize: 20, fontWeight: 700, textAlign: 'center', marginBottom: 8 }}
+                      maxLength={6}
+                      autoComplete="one-time-code"
+                      autoFocus
+                    />
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <button type="button" onClick={() => { setOtpSent(false); setOtp(''); }} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: '#6b7280' }}>← Change</button>
+                      <button type="button" onClick={handleResendOtp} disabled={otpLoading} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#3b6fd4', fontWeight: 500, fontSize: 13 }}>Resend OTP</button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Send OTP button */}
+                {!otpSent && (
+                  <button type="button" onClick={handleSendOtp} disabled={otpLoading}
+                    style={{ ...s.otpBtn, opacity: otpLoading ? 0.6 : 1, cursor: otpLoading ? 'not-allowed' : 'pointer' }}
+                    className="hl-hover-btn">
+                    {otpLoading ? <><Spinner /> Sending...</> : 'SEND OTP'}
+                  </button>
+                )}
+              </div>
+
+              {/* Login Button */}
+              <button
+                type={otpSent ? 'button' : 'submit'}
+                onClick={otpSent ? handleOtpLogin : undefined}
+                disabled={pwLoading || otpLoading || (otpSent && otp.length !== 6)}
+                style={{ ...s.btn, opacity: (pwLoading || otpLoading || (otpSent && otp.length !== 6)) ? 0.6 : 1, cursor: (pwLoading || otpLoading) ? 'not-allowed' : 'pointer' }}
+                className="hl-hover-btn"
+              >
+                {(pwLoading || otpLoading) ? <><Spinner /> Please wait...</> : 'Login'}
+              </button>
+            </form>
+
+            {/* Google */}
+            <div style={s.or}>(OR)</div>
+            <button type="button" onClick={loginWithGoogle} style={s.googleBtn} className="hl-google">
+              <GoogleIcon />
+              Continue with Google
+            </button>
+
+            {/* Signup */}
+            <p style={{ textAlign: 'center', fontSize: 14, color: '#6b7280', marginTop: 24 }}>
+              Don't have an account?{' '}
+              <Link to="/register" style={s.link}>Create account</Link>
+            </p>
+            <p style={{ textAlign: 'center', marginTop: 8 }}>
+              <Link to="/" style={{ fontSize: 13, color: '#9ca3af', textDecoration: 'none' }}>← Back to Home</Link>
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {showForgot && <ForgotPasswordModal onClose={() => setShowForgot(false)} />}
+    </>
   );
 }
