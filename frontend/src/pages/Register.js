@@ -43,8 +43,11 @@ export default function Register() {
 
   const [formData, setFormData] = useState({
     full_name: '',
+    last_name: '',
     email: '',
     phone: '',
+    date_of_birth: '',
+    gender: '',
     password: '',
     confirmPassword: '',
     role: 'patient',
@@ -60,12 +63,25 @@ export default function Register() {
     setErrors({ ...errors, [e.target.name]: '' });
   };
 
+  // Max date = today (no future DOB)
+  const today = new Date().toISOString().split('T')[0];
+
+  // Min date = 100 years ago
+  const minDate = new Date();
+  minDate.setFullYear(minDate.getFullYear() - 100);
+  const minDateStr = minDate.toISOString().split('T')[0];
+
   const validate = () => {
     const errs = {};
-    if (!formData.full_name.trim()) errs.full_name = 'Full name is required.';
+    if (!formData.full_name.trim()) errs.full_name = 'First name is required.';
     if (!formData.email.trim()) errs.email = 'Email is required.';
     else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) errs.email = 'Enter a valid email.';
     if (formData.phone && !/^[6-9]\d{9}$/.test(formData.phone)) errs.phone = 'Enter a valid 10-digit mobile number.';
+    if (formData.date_of_birth) {
+      const dob = new Date(formData.date_of_birth);
+      const age = (new Date() - dob) / (365.25 * 24 * 60 * 60 * 1000);
+      if (age < 1) errs.date_of_birth = 'Please enter a valid date of birth.';
+    }
     if (!formData.password) errs.password = 'Password is required.';
     else if (formData.password.length < 8) errs.password = 'Password must be at least 8 characters.';
     if (formData.password !== formData.confirmPassword) errs.confirmPassword = 'Passwords do not match.';
@@ -79,10 +95,16 @@ export default function Register() {
     if (Object.keys(errs).length > 0) { setErrors(errs); return; }
     setLoading(true);
     try {
+      const fullName = formData.last_name
+        ? `${formData.full_name.trim()} ${formData.last_name.trim()}`
+        : formData.full_name.trim();
+
       await register({
-        full_name: formData.full_name,
+        full_name: fullName,
         email: formData.email,
         phone: formData.phone ? `+91${formData.phone}` : undefined,
+        date_of_birth: formData.date_of_birth || undefined,
+        gender: formData.gender || undefined,
         password: formData.password,
         role: formData.role,
       });
@@ -97,15 +119,14 @@ export default function Register() {
 
   const s = {
     page: { minHeight: '100vh', background: '#fff', fontFamily: "'Inter', -apple-system, sans-serif", padding: '32px 24px' },
-    topBar: { maxWidth: 600, margin: '0 auto 8px', display: 'flex', alignItems: 'center', justifyContent: 'flex-start' },
-    wrap: { maxWidth: 600, margin: '0 auto' },
+    topBar: { maxWidth: 620, margin: '0 auto 8px', display: 'flex', alignItems: 'center', justifyContent: 'flex-start' },
+    wrap: { maxWidth: 620, margin: '0 auto' },
     title: { fontSize: 28, fontWeight: 700, color: '#1f2937', marginBottom: 24, marginTop: 4 },
     label: { display: 'block', fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 6 },
     req: { color: '#e53e3e', marginLeft: 2 },
     input: { width: '100%', padding: '11px 14px', border: '1px solid #d1d5db', borderRadius: 4, fontSize: 14, outline: 'none', boxSizing: 'border-box', color: '#1f2937', background: '#fff', transition: 'border-color .2s, box-shadow .2s' },
     inputErr: { borderColor: '#f87171' },
     err: { color: '#dc2626', fontSize: 12, marginTop: 4 },
-    row: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 18 },
     btn: { width: '100%', padding: '12px', background: '#3b6fd4', color: '#fff', border: 'none', borderRadius: 4, fontSize: 15, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, transition: 'background .2s' },
     googleBtn: { width: '100%', padding: '11px', border: '1.5px solid #d1d5db', borderRadius: 4, background: '#fff', cursor: 'pointer', fontSize: 14, fontWeight: 500, color: '#374151', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, transition: 'background .2s' },
     or: { textAlign: 'center', color: '#6b7280', fontSize: 14, fontWeight: 500, margin: '20px 0' },
@@ -116,13 +137,17 @@ export default function Register() {
     <>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
-        input:focus { border-color: #3b6fd4 !important; box-shadow: 0 0 0 3px rgba(59,111,212,.1) !important; }
+        input:focus, select:focus { border-color: #3b6fd4 !important; box-shadow: 0 0 0 3px rgba(59,111,212,.1) !important; outline: none !important; }
         .reg-btn:hover:not(:disabled) { background: #2d5bb8 !important; }
         .reg-btn:disabled { opacity: .6; cursor: not-allowed; }
         .reg-google:hover { background: #f9fafb !important; }
         .role-btn { flex:1; padding:11px 8px; border:2px solid #d1d5db; border-radius:4px; font-size:14px; font-weight:500; cursor:pointer; background:#fff; color:#6b7280; transition:all .15s; display:flex; align-items:center; justify-content:center; gap:6px; }
         .role-btn.active { border-color:#3b6fd4; background:#eff4ff; color:#3b6fd4; font-weight:600; }
         .role-btn:hover { border-color:#3b6fd4; }
+        .gender-btn { flex:1; padding:10px 8px; border:2px solid #d1d5db; border-radius:4px; font-size:13px; font-weight:500; cursor:pointer; background:#fff; color:#6b7280; transition:all .15s; display:flex; align-items:center; justify-content:center; gap:5px; }
+        .gender-btn.active { border-color:#3b6fd4; background:#eff4ff; color:#3b6fd4; font-weight:600; }
+        .gender-btn:hover { border-color:#3b6fd4; }
+        input[type="date"]::-webkit-calendar-picker-indicator { cursor: pointer; opacity: 0.6; }
       `}</style>
 
       <div style={s.page}>
@@ -170,9 +195,10 @@ export default function Register() {
                   <input
                     type="text"
                     name="last_name"
+                    value={formData.last_name}
+                    onChange={handleChange}
                     placeholder="Last Name"
                     style={s.input}
-                    onChange={(e) => setFormData({ ...formData, full_name: formData.full_name.split(' ')[0] + ' ' + e.target.value })}
                   />
                 </div>
               </div>
@@ -214,6 +240,44 @@ export default function Register() {
               {errors.phone && <p style={s.err}>{errors.phone}</p>}
             </div>
 
+            {/* ── DOB + Gender (side by side) ── */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 18 }}>
+
+              {/* Date of Birth */}
+              <div>
+                <label style={s.label}>
+                  Date of Birth<span style={s.req}>*</span>
+                </label>
+                <input
+                  type="date"
+                  name="date_of_birth"
+                  value={formData.date_of_birth}
+                  onChange={handleChange}
+                  max={today}
+                  min={minDateStr}
+                  style={{ ...s.input, ...(errors.date_of_birth ? s.inputErr : {}), color: formData.date_of_birth ? '#1f2937' : '#9ca3af' }}
+                />
+                {errors.date_of_birth && <p style={s.err}>{errors.date_of_birth}</p>}
+              </div>
+
+              {/* Gender */}
+              <div>
+                <label style={s.label}>Gender</label>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  {[['male', '♂ Male'], ['female', '♀ Female'], ['other', '⚧ Other']].map(([val, label]) => (
+                    <button
+                      key={val}
+                      type="button"
+                      className={`gender-btn ${formData.gender === val ? 'active' : ''}`}
+                      onClick={() => setFormData({ ...formData, gender: val })}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
             {/* ── Register As ── */}
             <div style={{ marginBottom: 18 }}>
               <label style={s.label}>Register As<span style={s.req}>*</span></label>
@@ -231,7 +295,6 @@ export default function Register() {
             <div style={{ marginBottom: 18 }}>
               <label style={s.label}>Password<span style={s.req}>*</span></label>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                {/* Password */}
                 <div>
                   <div style={{ position: 'relative' }}>
                     <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)' }}><LockIcon /></span>
@@ -252,7 +315,6 @@ export default function Register() {
                   </div>
                   {errors.password && <p style={s.err}>{errors.password}</p>}
                 </div>
-                {/* Confirm Password */}
                 <div>
                   <div style={{ position: 'relative' }}>
                     <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)' }}><LockIcon /></span>
@@ -307,21 +369,15 @@ export default function Register() {
             </button>
           </form>
 
-          {/* ── OR ── */}
+          {/* OR */}
           <div style={s.or}>(OR)</div>
 
-          {/* ── Google ── */}
-          <button
-            type="button"
-            onClick={loginWithGoogle}
-            style={s.googleBtn}
-            className="reg-google"
-          >
+          {/* Google */}
+          <button type="button" onClick={loginWithGoogle} style={s.googleBtn} className="reg-google">
             <GoogleIcon />
             Continue with Google
           </button>
 
-          {/* ── Login link ── */}
           <p style={{ textAlign: 'center', fontSize: 14, color: '#6b7280', marginTop: 24 }}>
             Already have an account?{' '}
             <Link to="/login" style={s.link}>Login here</Link>
