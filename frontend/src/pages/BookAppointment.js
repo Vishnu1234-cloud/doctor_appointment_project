@@ -218,7 +218,9 @@ export default function BookAppointment() {
             {doctorProfile.full_name?.charAt(0) || 'D'}
           </div>
           <div style={{ flex:1, minWidth:0 }}>
-            <div style={{ fontSize:15, fontWeight:500, color:'#111', marginBottom:2, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>Dr. {doctorProfile.full_name}</div>
+            <div style={{ fontSize:15, fontWeight:500, color:'#111', marginBottom:2, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>
+              {doctorProfile.full_name?.startsWith('Dr') ? doctorProfile.full_name : `Dr. ${doctorProfile.full_name}`}
+            </div>
             <div style={{ fontSize:12, color:'#6b7280', marginBottom:7 }}>{doctorProfile.specialization || 'General Physician'}</div>
             <div style={{ display:'flex', gap:7, flexWrap:'wrap' }}>
               <span style={{ fontSize:11, padding:'3px 9px', borderRadius:999, fontWeight:500, background:tealLight, color:tealDark }}>₹{doctorProfile.consultation_fee} fee</span>
@@ -331,7 +333,7 @@ export default function BookAppointment() {
         <div style={{ background:'#fff', border:'0.5px solid #e5e7eb', borderRadius:12, padding:'1.2rem 1.4rem', marginBottom:'1rem' }}>
           <div style={{ fontSize:11, fontWeight:500, color:'#9ca3af', textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:'0.9rem' }}>Appointment summary</div>
           {[
-            { label:'Doctor', value:doctorProfile?`Dr. ${doctorProfile.full_name}`:'—' },
+            { label:'Doctor', value:doctorProfile?(doctorProfile.full_name?.startsWith('Dr') ? doctorProfile.full_name : `Dr. ${doctorProfile.full_name}`):'—' },
             { label:'Date', value:`${getDayName(selectedDate)}, ${selectedDate.getDate()} ${MONTHS[selectedDate.getMonth()]} ${selectedDate.getFullYear()}` },
             { label:'Time', value:selectedTime, tz:true },
             { label:'Type', value:consultationType==='video'?'Video consultation':'Chat consultation' },

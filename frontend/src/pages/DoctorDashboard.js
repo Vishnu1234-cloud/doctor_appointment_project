@@ -120,7 +120,9 @@ export default function DoctorDashboard() {
             {new Date().toLocaleDateString('en-IN', { weekday:'long', day:'numeric', month:'long', year:'numeric' })}
           </div>
           <h2 style={{ fontSize:isMobile?20:24, fontWeight:700, letterSpacing:'-0.4px', color:T.textPri, margin:0 }} data-testid="dashboard-title">
-            Good {getGreeting()}, <span style={{ color:T.primary }}>Dr. {user?.full_name?.split(' ')[0]}</span> 🩺
+            Good {getGreeting()}, <span style={{ color:T.primary }}>
+              {user?.full_name?.startsWith('Dr') ? user.full_name.split(' ')[1] || user.full_name : user?.full_name?.split(' ')[0]}
+            </span> 🩺
           </h2>
           <p style={{ fontSize:13, color:T.textMut, marginTop:4, fontFamily:mono }} data-testid="dashboard-subtitle">
             Manage your appointments and consultations
