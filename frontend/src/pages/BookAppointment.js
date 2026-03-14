@@ -29,9 +29,22 @@ function getDayName(date) {
   return ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][date.getDay()];
 }
 
+function useWindowWidth() {
+  const [w, setW] = React.useState(window.innerWidth);
+  React.useEffect(() => {
+    const fn = () => setW(window.innerWidth);
+    window.addEventListener('resize', fn);
+    return () => window.removeEventListener('resize', fn);
+  }, []);
+  return w;
+}
+
 export default function BookAppointment() {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const w = useWindowWidth();
+  const isMobile = w < 640;
+  const isTablet = w < 900;
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -96,39 +109,22 @@ export default function BookAppointment() {
     setLoading(true);
     try {
       const dateStr = formatDateStr(selectedDate);
-      const appointmentData = {
-        patient_id: user.id,
-        date: dateStr,
-        time: selectedTime,
-        consultation_type: consultationType,
-        reason,
-      };
-
+      const appointmentData = { patient_id:user.id, date:dateStr, time:selectedTime, consultation_type:consultationType, reason };
       const response = await axios.post(`${API}/appointments`, appointmentData);
       const appointment = response.data;
-
-      const orderData = {
-        amount: doctorProfile.consultation_fee,
-        currency: 'INR',
-        appointment_id: appointment.id,
-      };
-
+      const orderData = { amount:doctorProfile.consultation_fee, currency:'INR', appointment_id:appointment.id };
       const orderResponse = await axios.post(`${API}/payments/create-order`, orderData);
 
       if (orderResponse.data.test_mode) {
         toast.success('Test Mode: Simulating payment...');
-        await axios.post(`${API}/payments/verify`, {
-          appointment_id: appointment.id,
-          payment_id: `pay_test_${Date.now()}`,
-          test_mode: true,
-        });
+        await axios.post(`${API}/payments/verify`, { appointment_id:appointment.id, payment_id:`pay_test_${Date.now()}`, test_mode:true });
         toast.success('Appointment booked successfully!');
         setTimeout(() => navigate('/patient/dashboard'), 800);
         return;
       }
 
       const ok = await loadRazorpay();
-      if (!ok) { toast.error('Razorpay failed to load. Check internet and try again.'); return; }
+      if (!ok) { toast.error('Razorpay failed to load.'); return; }
 
       const options = {
         key: process.env.REACT_APP_RAZORPAY_KEY_ID || 'rzp_test_key',
@@ -139,33 +135,25 @@ export default function BookAppointment() {
         description: 'Consultation Fee',
         handler: async function (rzpResponse) {
           try {
-            await axios.post(`${API}/payments/verify`, {
-              appointment_id: appointment.id,
-              payment_id: rzpResponse.razorpay_payment_id,
-              test_mode: false,
-            });
+            await axios.post(`${API}/payments/verify`, { appointment_id:appointment.id, payment_id:rzpResponse.razorpay_payment_id, test_mode:false });
             toast.success('Appointment booked successfully!');
             setTimeout(() => navigate('/patient/dashboard'), 800);
           } catch { toast.error('Payment verification failed'); }
         },
-        prefill: { name: user.full_name, email: user.email },
-        theme: { color: '#0F766E' },
+        prefill: { name:user.full_name, email:user.email },
+        theme: { color:'#0F766E' },
       };
-
       const razorpay = new window.Razorpay(options);
       razorpay.open();
     } catch (error) {
       toast.error(error.response?.data?.detail || 'Failed to create appointment');
-    } finally {
-      setLoading(false);
-    }
+    } finally { setLoading(false); }
   };
 
-  // ── Calendar helpers ──
   const daysInMonth = getDaysInMonth(calYear, calMonth);
   const firstDay    = getFirstDayOfMonth(calYear, calMonth);
-  const calCells    = Array.from({ length: firstDay }, () => null)
-    .concat(Array.from({ length: daysInMonth }, (_, i) => i + 1));
+  const calCells    = Array.from({ length:firstDay }, () => null)
+    .concat(Array.from({ length:daysInMonth }, (_, i) => i + 1));
 
   const isTodayCell = (day) => {
     if (!day) return false;
@@ -182,36 +170,42 @@ export default function BookAppointment() {
     return d < today;
   };
 
-  // ── Calendar day style — FIX: today=ring, selected=filled, both selected+today=filled ──
+  const teal = '#1D9E75';
+  const tealDark = '#0F6E56';
+  const tealLight = '#E1F5EE';
+
   const getCalDayStyle = (day) => {
-    if (!day) return { ...S.calDay, cursor: 'default' };
-    if (isPastCell(day)) return { ...S.calDay, ...S.calDayPast };
-    if (isSelectedCell(day)) return { ...S.calDay, ...S.calDaySel };   // selected wins
-    if (isTodayCell(day))    return { ...S.calDay, ...S.calDayToday }; // today = ring only
-    return S.calDay;
+    const base = { width:isMobile?26:29, height:isMobile?26:29, borderRadius:'50%', display:'flex', alignItems:'center', justifyContent:'center', fontSize:isMobile?11:12, margin:'0 auto', cursor:'pointer', color:'#6b7280' };
+    if (!day) return { ...base, cursor:'default' };
+    if (isPastCell(day)) return { ...base, color:'#e5e7eb', cursor:'default' };
+    if (isSelectedCell(day)) return { ...base, background:teal, color:'#fff', border:'none' };
+    if (isTodayCell(day)) return { ...base, color:teal, fontWeight:600, border:`2px solid ${teal}` };
+    return base;
   };
 
   const nextSlot = availableSlots[0];
+  const slotCols = isMobile ? 2 : 4;
 
   return (
-    <div style={S.page}>
+    <div style={{ fontFamily:"'DM Sans','Segoe UI',sans-serif", maxWidth:960, margin:'0 auto', padding:isMobile?'1rem 0.875rem 2rem':'1.5rem 1.25rem 3rem', color:'#111' }}>
 
       {/* Header */}
-      <div style={S.header}>
-        <button style={S.backBtn} onClick={() => navigate('/patient/dashboard')}>←</button>
-        <span style={S.pageTitle}>Book appointment</span>
+      <div style={{ display:'flex', alignItems:'center', gap:12, marginBottom:'1.5rem' }}>
+        <button style={{ width:34, height:34, borderRadius:'50%', border:'0.5px solid #d1d5db', background:'#fff', display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', fontSize:14, color:'#6b7280' }}
+          onClick={() => navigate('/patient/dashboard')}>←</button>
+        <span style={{ fontSize:isMobile?17:20, fontWeight:500, color:tealDark }}>Book appointment</span>
       </div>
 
       {/* Progress bar */}
-      <div style={S.progress}>
+      <div style={{ display:'flex', alignItems:'center', marginBottom:'1.5rem' }}>
         {['Doctor','Schedule','Confirm','Payment'].map((label, i) => (
-          <div key={label} style={S.stepWrap}>
-            {i > 0 && <div style={{ ...S.stepLine, ...(i <= 1 ? S.stepLineDone : {}) }} />}
-            <div style={S.stepCol}>
-              <div style={{ ...S.stepCirc, ...(i===0 ? S.sDone : i===1 ? S.sActive : S.sIdle) }}>
+          <div key={label} style={{ display:'flex', flex:1, alignItems:'center' }}>
+            {i > 0 && <div style={{ flex:1, height:1.5, background:i<=1?teal:'#e5e7eb', marginTop:-15 }} />}
+            <div style={{ display:'flex', flexDirection:'column', alignItems:'center', flex:1 }}>
+              <div style={{ width:30, height:30, borderRadius:'50%', display:'flex', alignItems:'center', justifyContent:'center', fontSize:12, fontWeight:500, ...(i===0?{background:teal,color:'#fff'}:i===1?{background:teal,color:'#fff',boxShadow:'0 0 0 4px rgba(29,158,117,0.15)'}:{background:'#f3f4f6',color:'#9ca3af',border:'0.5px solid #e5e7eb'}) }}>
                 {i === 0 ? '✓' : i + 1}
               </div>
-              <span style={{ ...S.stepLbl, ...(i===1 ? S.stepLblActive : {}) }}>{label}</span>
+              {!isMobile && <span style={{ fontSize:11, marginTop:5, color:i===1?tealDark:'#9ca3af', fontWeight:i===1?500:400, textAlign:'center' }}>{label}</span>}
             </div>
           </div>
         ))}
@@ -219,129 +213,112 @@ export default function BookAppointment() {
 
       {/* Doctor card */}
       {doctorProfile && (
-        <div style={S.docCard}>
-          <div style={S.docAvatar}>{doctorProfile.full_name?.charAt(0) || 'D'}</div>
-          <div style={S.docInfo}>
-            <div style={S.docName}>Dr. {doctorProfile.full_name}</div>
-            <div style={S.docSpec}>{doctorProfile.specialization || 'General Physician'}</div>
-            <div style={S.docBadges}>
-              <span style={{ ...S.badge, ...S.badgeGreen }}>₹{doctorProfile.consultation_fee} fee</span>
-              <span style={{ ...S.badge, ...S.badgeBlue }}>✓ Verified</span>
+        <div style={{ background:'#fff', border:'0.5px solid #e5e7eb', borderRadius:12, padding:'1rem 1.25rem', marginBottom:'1.25rem', display:'flex', alignItems:'center', gap:14 }}>
+          <div style={{ width:50, height:50, borderRadius:'50%', background:tealLight, display:'flex', alignItems:'center', justifyContent:'center', fontSize:18, fontWeight:500, color:tealDark, flexShrink:0 }}>
+            {doctorProfile.full_name?.charAt(0) || 'D'}
+          </div>
+          <div style={{ flex:1, minWidth:0 }}>
+            <div style={{ fontSize:15, fontWeight:500, color:'#111', marginBottom:2, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>Dr. {doctorProfile.full_name}</div>
+            <div style={{ fontSize:12, color:'#6b7280', marginBottom:7 }}>{doctorProfile.specialization || 'General Physician'}</div>
+            <div style={{ display:'flex', gap:7, flexWrap:'wrap' }}>
+              <span style={{ fontSize:11, padding:'3px 9px', borderRadius:999, fontWeight:500, background:tealLight, color:tealDark }}>₹{doctorProfile.consultation_fee} fee</span>
+              <span style={{ fontSize:11, padding:'3px 9px', borderRadius:999, fontWeight:500, background:'#E6F1FB', color:'#0C447C' }}>✓ Verified</span>
             </div>
           </div>
         </div>
       )}
 
-      {/* Calendar + Consult type */}
-      <div style={S.twoCol}>
-
-        {/* Calendar */}
-        <div style={S.card}>
-          <div style={S.cardTitle}>Select date</div>
-          <div style={S.calNav}>
-            <button style={S.calArr} onClick={prevMonth}>‹</button>
-            <span style={S.calMonth}>{MONTHS[calMonth]} {calYear}</span>
-            <button style={S.calArr} onClick={nextMonth}>›</button>
+      {/* Calendar + Consult — stack on mobile */}
+      <div style={{ display:'grid', gridTemplateColumns:isMobile||isTablet?'1fr':'1fr 1fr', gap:'1rem', marginBottom:'1rem' }}>
+        <div style={{ background:'#fff', border:'0.5px solid #e5e7eb', borderRadius:12, padding:'1.2rem 1.4rem' }}>
+          <div style={{ fontSize:11, fontWeight:500, color:'#9ca3af', textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:'0.9rem' }}>Select date</div>
+          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'0.85rem' }}>
+            <button style={{ width:26, height:26, borderRadius:'50%', border:'0.5px solid #e5e7eb', background:'#fff', display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', color:'#6b7280', fontSize:12 }} onClick={prevMonth}>‹</button>
+            <span style={{ fontSize:14, fontWeight:500, color:'#111' }}>{MONTHS[calMonth]} {calYear}</span>
+            <button style={{ width:26, height:26, borderRadius:'50%', border:'0.5px solid #e5e7eb', background:'#fff', display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', color:'#6b7280', fontSize:12 }} onClick={nextMonth}>›</button>
           </div>
-          <div style={S.calGrid}>
-            {DAYS_SHORT.map(d => <div key={d} style={S.calDayName}>{d}</div>)}
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(7,1fr)', gap:isMobile?2:3, textAlign:'center' }}>
+            {DAYS_SHORT.map(d => <div key={d} style={{ fontSize:10, color:'#d1d5db', fontWeight:500, padding:'3px 0' }}>{d}</div>)}
             {calCells.map((day, idx) => (
-              <div key={idx} onClick={() => day && handleDateClick(day)} style={getCalDayStyle(day)}>
-                {day || ''}
-              </div>
+              <div key={idx} onClick={() => day && handleDateClick(day)} style={getCalDayStyle(day)}>{day || ''}</div>
             ))}
           </div>
         </div>
 
-        {/* Consult type + Reason */}
-        <div style={S.card}>
-          <div style={S.cardTitle}>Consultation type</div>
+        <div style={{ background:'#fff', border:'0.5px solid #e5e7eb', borderRadius:12, padding:'1.2rem 1.4rem' }}>
+          <div style={{ fontSize:11, fontWeight:500, color:'#9ca3af', textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:'0.9rem' }}>Consultation type</div>
           {[
-            { id: 'video', label: 'Video call', sub: `Face-to-face · ₹${doctorProfile?.consultation_fee || ''}`, Icon: Video },
-            { id: 'chat',  label: 'Chat',        sub: `Text-based · ₹${doctorProfile?.consultation_fee || ''}`,  Icon: MessageCircle },
+            { id:'video', label:'Video call', sub:`Face-to-face · ₹${doctorProfile?.consultation_fee||''}`, Icon:Video },
+            { id:'chat',  label:'Chat',        sub:`Text-based · ₹${doctorProfile?.consultation_fee||''}`,  Icon:MessageCircle },
           ].map(opt => (
-            <div
-              key={opt.id}
-              onClick={() => setConsultationType(opt.id)}
-              style={{ ...S.consultOpt, ...(consultationType === opt.id ? S.consultOptOn : {}) }}
-            >
-              <div style={{ ...S.consultIcon, background: opt.id==='video' ? '#E1F5EE' : '#E6F1FB' }}>
-                <opt.Icon size={16} color={opt.id==='video' ? '#085041' : '#0C447C'} />
+            <div key={opt.id} onClick={() => setConsultationType(opt.id)}
+              style={{ display:'flex', alignItems:'center', gap:10, padding:'10px 12px', border:consultationType===opt.id?`1.5px solid ${teal}`:'0.5px solid #e5e7eb', borderRadius:8, cursor:'pointer', marginBottom:8, background:consultationType===opt.id?'#f2fbf8':'#fff' }}>
+              <div style={{ width:32, height:32, borderRadius:8, background:opt.id==='video'?tealLight:'#E6F1FB', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                <opt.Icon size={16} color={opt.id==='video'?'#085041':'#0C447C'} />
               </div>
               <div>
-                <div style={S.consultTitle}>{opt.label}</div>
-                <div style={S.consultSub}>{opt.sub}</div>
+                <div style={{ fontSize:13, fontWeight:500, color:'#111' }}>{opt.label}</div>
+                <div style={{ fontSize:11, color:'#9ca3af' }}>{opt.sub}</div>
               </div>
-              <div style={{ ...S.radio, ...(consultationType === opt.id ? S.radioOn : {}) }} />
+              <div style={{ marginLeft:'auto', width:15, height:15, borderRadius:'50%', border:consultationType===opt.id?`none`:'2px solid #d1d5db', flexShrink:0, background:consultationType===opt.id?teal:'transparent', boxShadow:consultationType===opt.id?`inset 0 0 0 3px #fff`:undefined }} />
             </div>
           ))}
-
-          <div style={{ marginTop: 16 }}>
-            <div style={S.cardTitle}>
-              Reason for visit&nbsp;<span style={S.requiredStar}>*</span>
+          <div style={{ marginTop:16 }}>
+            <div style={{ fontSize:11, fontWeight:500, color:'#9ca3af', textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:'0.9rem' }}>
+              Reason for visit&nbsp;<span style={{ color:'#E24B4A', fontSize:12 }}>*</span>
             </div>
-            <textarea
-              maxLength={200}
-              value={reason}
-              onChange={e => setReason(e.target.value)}
-              onBlur={() => setReasonTouched(true)}
+            <textarea maxLength={200} value={reason} onChange={e => setReason(e.target.value)} onBlur={() => setReasonTouched(true)}
               placeholder="Describe your health concern briefly..."
-              style={{ ...S.textarea, ...(reasonError ? S.textareaError : {}) }}
-            />
-            <div style={S.charCountRow}>
-              {reasonError ? <span style={S.errorMsg}>This field is required</span> : <span />}
-              <span style={S.charCount}>{reason.length} / 200</span>
+              style={{ width:'100%', border:reasonError?'1px solid #E24B4A':'0.5px solid #e5e7eb', borderRadius:8, padding:'10px 12px', fontSize:13, resize:'none', height:78, fontFamily:'inherit', background:reasonError?'#fff9f9':'#fff', color:'#111', outline:'none', boxSizing:'border-box' }} />
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginTop:4 }}>
+              {reasonError ? <span style={{ fontSize:11, color:'#E24B4A' }}>This field is required</span> : <span />}
+              <span style={{ fontSize:11, color:'#d1d5db' }}>{reason.length} / 200</span>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Timezone banner */}
-      <div style={S.tzBar}>
-        <span style={{ fontSize: 14 }}>🕐</span>
-        <span style={S.tzText}>Asia/Kolkata (IST, UTC+5:30)</span>
-        <span style={S.tzSub}>All times shown in your local timezone</span>
+      {/* Timezone */}
+      <div style={{ display:'flex', alignItems:'center', gap:8, background:tealLight, borderRadius:8, padding:'9px 13px', marginBottom:'1rem', flexWrap:'wrap' }}>
+        <span style={{ fontSize:14 }}>🕐</span>
+        <span style={{ fontSize:12, color:tealDark, fontWeight:500 }}>Asia/Kolkata (IST, UTC+5:30)</span>
+        <span style={{ fontSize:11, color:teal, marginLeft:'auto' }}>{isMobile?'Local timezone':'All times shown in your local timezone'}</span>
       </div>
 
-      {/* Time slots */}
-      <div style={S.card}>
-        <div style={S.slotsHeader}>
-          <div style={S.cardTitle}>
-            Available time slots{selectedDate ? ` · ${selectedDate.getDate()} ${MONTHS[selectedDate.getMonth()]}` : ''}
+      {/* Slots */}
+      <div style={{ background:'#fff', border:'0.5px solid #e5e7eb', borderRadius:12, padding:'1.2rem 1.4rem', marginBottom:'1rem' }}>
+        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'0.9rem', flexWrap:'wrap', gap:8 }}>
+          <div style={{ fontSize:11, fontWeight:500, color:'#9ca3af', textTransform:'uppercase', letterSpacing:'0.06em' }}>
+            Slots{selectedDate ? ` · ${selectedDate.getDate()} ${MONTHS[selectedDate.getMonth()]}` : ''}
           </div>
-          <div style={S.slotHeaderRight}>
-            {nextSlot && <span style={S.nextTag}>Next available: {nextSlot.time}</span>}
-            <div style={S.legend}>
-              <LegendDot color="#1D9E75" label="Selected" />
-              <LegendDot color="#f3f4f6" border="0.5px solid #e5e7eb" label="Booked" />
-              <LegendDot color="#fff" border="1.5px solid #1D9E75" label="Next" />
-            </div>
+          <div style={{ display:'flex', alignItems:'center', gap:isMobile?6:10, flexWrap:'wrap' }}>
+            {nextSlot && <span style={{ fontSize:11, background:'#FAEEDA', color:'#633806', padding:'3px 9px', borderRadius:999, fontWeight:500 }}>Next: {nextSlot.time}</span>}
+            {!isMobile && (
+              <div style={{ display:'flex', gap:10 }}>
+                {[{color:'#1D9E75',label:'Selected'},{color:'#f3f4f6',border:'0.5px solid #e5e7eb',label:'Booked'},{color:'#fff',border:'1.5px solid #1D9E75',label:'Next'}].map(l => (
+                  <div key={l.label} style={{ display:'flex', alignItems:'center', gap:5 }}>
+                    <div style={{ width:8, height:8, borderRadius:'50%', background:l.color, border:l.border||'none' }} />
+                    <span style={{ fontSize:11, color:'#9ca3af' }}>{l.label}</span>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
-
         {!selectedDate ? (
-          <p style={S.emptyMsg}>Please select a date first</p>
+          <p style={{ fontSize:13, color:'#9ca3af' }}>Please select a date first</p>
         ) : availableSlots.length === 0 ? (
-          <p style={S.emptyMsg}>No available slots for this date</p>
+          <p style={{ fontSize:13, color:'#9ca3af' }}>No available slots for this date</p>
         ) : (
-          <div style={S.slotGrid}>
+          <div style={{ display:'grid', gridTemplateColumns:`repeat(${slotCols},1fr)`, gap:8 }}>
             {availableSlots.map((slot, i) => {
               const isSel  = selectedTime === slot.time;
-              // FIX: next border + dot sirf tab jab koi bhi slot select nahi hua
               const isNext = i === 0 && selectedTime === '';
               return (
-                <button
-                  key={i}
-                  type="button"
-                  onClick={() => setSelectedTime(slot.time)}
-                  style={{
-                    ...S.slotBtn,
-                    ...(isSel  ? S.slotSel  : {}),
-                    ...(isNext ? S.slotNext : {}),
-                  }}
-                >
+                <button key={i} type="button" onClick={() => setSelectedTime(slot.time)}
+                  style={{ padding:'11px 4px', border:isSel?`none`:isNext?`1.5px solid ${teal}`:'0.5px solid #e5e7eb', borderRadius:999, background:isSel?teal:'#fff', color:isSel?'#fff':'#111', fontSize:isMobile?12:13, textAlign:'center', cursor:'pointer', position:'relative', fontFamily:'inherit', fontWeight:isSel?500:400 }}>
                   {slot.time}
-                  {isNext && <span style={S.nextDot} />}
+                  {isNext && <span style={{ position:'absolute', top:-3, right:8, width:7, height:7, borderRadius:'50%', background:teal }} />}
                 </button>
               );
             })}
@@ -349,172 +326,66 @@ export default function BookAppointment() {
         )}
       </div>
 
-      {/* Appointment summary */}
+      {/* Summary */}
       {selectedDate && selectedTime && (
-        <div style={S.card}>
-          <div style={S.cardTitle}>Appointment summary</div>
+        <div style={{ background:'#fff', border:'0.5px solid #e5e7eb', borderRadius:12, padding:'1.2rem 1.4rem', marginBottom:'1rem' }}>
+          <div style={{ fontSize:11, fontWeight:500, color:'#9ca3af', textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:'0.9rem' }}>Appointment summary</div>
           {[
-            { label: 'Doctor',           value: doctorProfile ? `Dr. ${doctorProfile.full_name}` : '—' },
-            { label: 'Date',             value: `${getDayName(selectedDate)}, ${selectedDate.getDate()} ${MONTHS[selectedDate.getMonth()]} ${selectedDate.getFullYear()}` },
-            { label: 'Time',             value: selectedTime, tz: true },
-            { label: 'Type',             value: consultationType === 'video' ? 'Video consultation' : 'Chat consultation' },
-            { label: 'Consultation fee', value: doctorProfile ? `₹${doctorProfile.consultation_fee}` : '—', fee: true },
+            { label:'Doctor', value:doctorProfile?`Dr. ${doctorProfile.full_name}`:'—' },
+            { label:'Date', value:`${getDayName(selectedDate)}, ${selectedDate.getDate()} ${MONTHS[selectedDate.getMonth()]} ${selectedDate.getFullYear()}` },
+            { label:'Time', value:selectedTime, tz:true },
+            { label:'Type', value:consultationType==='video'?'Video consultation':'Chat consultation' },
+            { label:'Fee', value:doctorProfile?`₹${doctorProfile.consultation_fee}`:'—', fee:true },
           ].map(row => (
-            <div key={row.label} style={S.summaryRow}>
-              <span style={S.summaryLabel}>{row.label}</span>
-              <span style={{ ...S.summaryValue, ...(row.fee ? S.summaryFee : {}) }}>
-                {row.value}
-                {row.tz && <span style={S.tzPill}> IST</span>}
+            <div key={row.label} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'7px 0', borderBottom:'0.5px solid #f3f4f6', flexWrap:'wrap', gap:4 }}>
+              <span style={{ fontSize:12, color:'#9ca3af' }}>{row.label}</span>
+              <span style={{ fontSize:row.fee?16:13, fontWeight:500, color:row.fee?tealDark:'#111' }}>
+                {row.value}{row.tz && <span style={{ fontSize:11, color:teal }}> IST</span>}
               </span>
             </div>
           ))}
         </div>
       )}
 
-      {/* Confirm button */}
-      <button
-        onClick={handleBookAppointment}
-        disabled={!isReady || loading}
-        style={{ ...S.confirmBtn, ...(!isReady || loading ? S.confirmBtnDisabled : {}) }}
-      >
-        {loading ? 'Processing...' : 'Confirm appointment →'}
+      {/* Confirm */}
+      <button onClick={handleBookAppointment} disabled={!isReady||loading}
+        style={{ width:'100%', background:teal, color:'#fff', border:'none', borderRadius:999, padding:15, fontSize:15, fontWeight:500, cursor:'pointer', marginBottom:'1.5rem', opacity:!isReady||loading?0.45:1 }}>
+        {loading?'Processing...':'Confirm appointment →'}
       </button>
 
       {/* Divider */}
-      <div style={S.divider}>
-        <div style={S.divLine} />
-        <span style={S.divText}>Additional information</span>
-        <div style={S.divLine} />
+      <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:'1rem' }}>
+        <div style={{ flex:1, height:0.5, background:'#e5e7eb' }} />
+        <span style={{ fontSize:11, color:'#d1d5db', whiteSpace:'nowrap' }}>Additional information</span>
+        <div style={{ flex:1, height:0.5, background:'#e5e7eb' }} />
       </div>
 
-      {/* FIX: Reschedule — scroll to top to re-select date/time */}
-      <div
-        style={S.reschedule}
-        onClick={() => {
-          setSelectedDate(null);
-          setSelectedTime('');
-          setAvailableSlots([]);
-          window.scrollTo({ top: 0, behavior: 'smooth' });
-        }}
-      >
-        <span>↺</span>
-        <span>Need to reschedule? Change your date or time</span>
+      {/* Reschedule */}
+      <div onClick={() => { setSelectedDate(null); setSelectedTime(''); setAvailableSlots([]); window.scrollTo({ top:0, behavior:'smooth' }); }}
+        style={{ display:'flex', alignItems:'center', gap:8, fontSize:13, color:'#185FA5', cursor:'pointer', padding:'11px 1.2rem', background:'#fff', border:'0.5px solid #e5e7eb', borderRadius:12, marginBottom:'1rem' }}>
+        <span>↺</span><span>Need to reschedule? Change your date or time</span>
       </div>
 
-      {/* Tips + Policy */}
-      <div style={S.twoCol}>
-        <div style={S.card}>
-          <div style={S.cardTitle}>Before your appointment</div>
+      {/* Tips + Policy — stack on mobile */}
+      <div style={{ display:'grid', gridTemplateColumns:isMobile?'1fr':'1fr 1fr', gap:'1rem', marginBottom:'1rem' }}>
+        <div style={{ background:'#fff', border:'0.5px solid #e5e7eb', borderRadius:12, padding:'1.2rem 1.4rem' }}>
+          <div style={{ fontSize:11, fontWeight:500, color:'#9ca3af', textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:'0.9rem' }}>Before your appointment</div>
           {['Email + SMS reminder sent 1 hr before','Keep your video link ready','Have reports or documents handy','Join 2 minutes early for tech check']
-            .map(t => <div key={t} style={S.listItem}>{t}</div>)}
+            .map(t => <div key={t} style={{ fontSize:12, color:'#6b7280', padding:'5px 0', borderBottom:'0.5px solid #f3f4f6', lineHeight:1.5 }}>{t}</div>)}
         </div>
-        <div style={S.card}>
-          <div style={S.cardTitle}>Cancellation policy</div>
+        <div style={{ background:'#fff', border:'0.5px solid #e5e7eb', borderRadius:12, padding:'1.2rem 1.4rem' }}>
+          <div style={{ fontSize:11, fontWeight:500, color:'#9ca3af', textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:'0.9rem' }}>Cancellation policy</div>
           {['Free cancellation up to 2 hrs before','50% refund if cancelled within 2 hrs','No refund for no-shows']
-            .map(p => <div key={p} style={S.listItem}>{p}</div>)}
+            .map(p => <div key={p} style={{ fontSize:12, color:'#6b7280', padding:'5px 0', borderBottom:'0.5px solid #f3f4f6', lineHeight:1.5 }}>{p}</div>)}
         </div>
       </div>
 
       {/* Reviews */}
       {doctorProfile && (
-        <div style={{ marginTop: '2rem', borderTop: '0.5px solid #e5e7eb', paddingTop: '2rem' }}>
+        <div style={{ marginTop:'2rem', borderTop:'0.5px solid #e5e7eb', paddingTop:'2rem' }}>
           <ReviewList doctorId={doctorProfile.id} />
         </div>
       )}
-
     </div>
   );
 }
-
-function LegendDot({ color, border, label }) {
-  return (
-    <div style={{ display:'flex', alignItems:'center', gap:5 }}>
-      <div style={{ width:8, height:8, borderRadius:'50%', background:color, border: border||'none' }} />
-      <span style={{ fontSize:11, color:'#9ca3af' }}>{label}</span>
-    </div>
-  );
-}
-
-const teal     = '#1D9E75';
-const tealDark = '#0F6E56';
-const tealLight = '#E1F5EE';
-
-const S = {
-  page: { fontFamily:"'DM Sans','Segoe UI',sans-serif", maxWidth:960, margin:'0 auto', padding:'1.5rem 1.25rem 3rem', color:'#111' },
-  header: { display:'flex', alignItems:'center', gap:12, marginBottom:'1.5rem' },
-  backBtn: { width:34, height:34, borderRadius:'50%', border:'0.5px solid #d1d5db', background:'#fff', display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', fontSize:14, color:'#6b7280' },
-  pageTitle: { fontSize:20, fontWeight:500, color:tealDark },
-  progress: { display:'flex', alignItems:'center', marginBottom:'1.5rem' },
-  stepWrap: { display:'flex', flex:1, alignItems:'center' },
-  stepCol:  { display:'flex', flexDirection:'column', alignItems:'center', flex:1 },
-  stepLine: { flex:1, height:1.5, background:'#e5e7eb', marginTop:-15 },
-  stepLineDone: { background:teal },
-  stepCirc: { width:30, height:30, borderRadius:'50%', display:'flex', alignItems:'center', justifyContent:'center', fontSize:12, fontWeight:500 },
-  sDone:   { background:teal, color:'#fff' },
-  sActive: { background:teal, color:'#fff', boxShadow:'0 0 0 4px rgba(29,158,117,0.15)' },
-  sIdle:   { background:'#f3f4f6', color:'#9ca3af', border:'0.5px solid #e5e7eb' },
-  stepLbl: { fontSize:11, marginTop:5, color:'#9ca3af', textAlign:'center' },
-  stepLblActive: { color:tealDark, fontWeight:500 },
-  docCard: { background:'#fff', border:'0.5px solid #e5e7eb', borderRadius:12, padding:'1rem 1.25rem', marginBottom:'1.25rem', display:'flex', alignItems:'center', gap:14 },
-  docAvatar: { width:50, height:50, borderRadius:'50%', background:tealLight, display:'flex', alignItems:'center', justifyContent:'center', fontSize:18, fontWeight:500, color:tealDark, flexShrink:0 },
-  docInfo: { flex:1 },
-  docName: { fontSize:15, fontWeight:500, color:'#111', marginBottom:2 },
-  docSpec: { fontSize:12, color:'#6b7280', marginBottom:7 },
-  docBadges: { display:'flex', gap:7 },
-  badge: { fontSize:11, padding:'3px 9px', borderRadius:999, fontWeight:500 },
-  badgeGreen: { background:tealLight, color:tealDark },
-  badgeBlue:  { background:'#E6F1FB', color:'#0C447C' },
-  twoCol: { display:'grid', gridTemplateColumns:'1fr 1fr', gap:'1rem', marginBottom:'1rem' },
-  card: { background:'#fff', border:'0.5px solid #e5e7eb', borderRadius:12, padding:'1.2rem 1.4rem', marginBottom:'1rem' },
-  cardTitle: { fontSize:11, fontWeight:500, color:'#9ca3af', textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:'0.9rem' },
-  calNav: { display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'0.85rem' },
-  calMonth: { fontSize:14, fontWeight:500, color:'#111' },
-  calArr: { width:26, height:26, borderRadius:'50%', border:'0.5px solid #e5e7eb', background:'#fff', display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', color:'#6b7280', fontSize:12 },
-  calGrid: { display:'grid', gridTemplateColumns:'repeat(7,1fr)', gap:3, textAlign:'center' },
-  calDayName: { fontSize:10, color:'#d1d5db', fontWeight:500, padding:'3px 0' },
-  calDay:      { width:29, height:29, borderRadius:'50%', display:'flex', alignItems:'center', justifyContent:'center', fontSize:12, margin:'0 auto', cursor:'pointer', color:'#6b7280' },
-  calDayPast:  { color:'#e5e7eb', cursor:'default' },
-  // FIX: today = green ring only (not filled), selected = filled green
-  calDayToday: { color:teal, fontWeight:600, border:`2px solid ${teal}`, borderRadius:'50%' },
-  calDaySel:   { background:teal, color:'#fff', border:'none' },
-  consultOpt: { display:'flex', alignItems:'center', gap:10, padding:'10px 12px', border:'0.5px solid #e5e7eb', borderRadius:8, cursor:'pointer', marginBottom:8 },
-  consultOptOn: { border:`1.5px solid ${teal}`, background:'#f2fbf8' },
-  consultIcon: { width:32, height:32, borderRadius:8, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 },
-  consultTitle: { fontSize:13, fontWeight:500, color:'#111' },
-  consultSub:   { fontSize:11, color:'#9ca3af' },
-  radio: { marginLeft:'auto', width:15, height:15, borderRadius:'50%', border:'2px solid #d1d5db', flexShrink:0 },
-  radioOn: { borderColor:teal, background:teal, boxShadow:'inset 0 0 0 3px #fff' },
-  requiredStar: { color:'#E24B4A', fontSize:12, textTransform:'none', letterSpacing:0 },
-  textarea: { width:'100%', border:'0.5px solid #e5e7eb', borderRadius:8, padding:'10px 12px', fontSize:13, resize:'none', height:78, fontFamily:'inherit', background:'#fff', color:'#111', outline:'none', boxSizing:'border-box' },
-  textareaError: { border:'1px solid #E24B4A', background:'#fff9f9' },
-  charCountRow: { display:'flex', justifyContent:'space-between', alignItems:'center', marginTop:4 },
-  charCount: { fontSize:11, color:'#d1d5db' },
-  errorMsg:  { fontSize:11, color:'#E24B4A' },
-  tzBar:  { display:'flex', alignItems:'center', gap:8, background:tealLight, borderRadius:8, padding:'9px 13px', marginBottom:'1rem' },
-  tzText: { fontSize:12, color:tealDark, fontWeight:500 },
-  tzSub:  { fontSize:11, color:teal, marginLeft:'auto' },
-  slotsHeader: { display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'0.9rem', flexWrap:'wrap', gap:8 },
-  slotHeaderRight: { display:'flex', alignItems:'center', gap:10, flexWrap:'wrap' },
-  nextTag: { fontSize:11, background:'#FAEEDA', color:'#633806', padding:'3px 9px', borderRadius:999, fontWeight:500 },
-  legend:  { display:'flex', gap:12 },
-  emptyMsg: { fontSize:13, color:'#9ca3af' },
-  slotGrid: { display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:8 },
-  slotBtn: { padding:'12px 4px', border:'0.5px solid #e5e7eb', borderRadius:999, background:'#fff', color:'#111', fontSize:13, textAlign:'center', cursor:'pointer', position:'relative', fontFamily:'inherit' },
-  slotSel:  { background:teal, color:'#fff', borderColor:tealDark, fontWeight:500 },
-  // FIX: next slot border — sirf tab jab koi slot select nahi
-  slotNext: { border:`1.5px solid ${teal}` },
-  nextDot:  { position:'absolute', top:-3, right:8, width:7, height:7, borderRadius:'50%', background:teal },
-  summaryRow:   { display:'flex', justifyContent:'space-between', alignItems:'center', padding:'7px 0', borderBottom:'0.5px solid #f3f4f6' },
-  summaryLabel: { fontSize:12, color:'#9ca3af' },
-  summaryValue: { fontSize:13, fontWeight:500, color:'#111' },
-  summaryFee:   { fontSize:16, color:tealDark },
-  tzPill:       { fontSize:11, color:teal },
-  confirmBtn: { width:'100%', background:teal, color:'#fff', border:'none', borderRadius:999, padding:15, fontSize:15, fontWeight:500, cursor:'pointer', marginBottom:'1.5rem' },
-  confirmBtnDisabled: { opacity:0.45, cursor:'not-allowed' },
-  divider: { display:'flex', alignItems:'center', gap:10, marginBottom:'1rem' },
-  divLine: { flex:1, height:0.5, background:'#e5e7eb' },
-  divText: { fontSize:11, color:'#d1d5db', whiteSpace:'nowrap' },
-  // FIX: reschedule — cursor pointer, resets selection
-  reschedule: { display:'flex', alignItems:'center', gap:8, fontSize:13, color:'#185FA5', cursor:'pointer', padding:'11px 1.2rem', background:'#fff', border:'0.5px solid #e5e7eb', borderRadius:12, marginBottom:'1rem' },
-  listItem: { fontSize:12, color:'#6b7280', padding:'5px 0', borderBottom:'0.5px solid #f3f4f6', lineHeight:1.5 },
-};
