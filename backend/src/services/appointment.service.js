@@ -167,10 +167,12 @@ class AppointmentService {
 
     const bookedTimes = bookedAppointments.map((apt) => apt.time);
 
-    // Generate time slots (9 AM to 6 PM, 30-minute intervals)
+    // Generate time slots (6 PM to 8 PM, 15-minute intervals)
     const slots = [];
-    for (let hour = 9; hour < 18; hour++) {
-      for (let minute of [0, 30]) {
+    for (let hour = 18; hour <= 20; hour++) {
+      for (let minute of [0, 15, 30, 45]) {
+        // 20:00 ke baad koi slot nahi
+        if (hour === 20 && minute > 0) break;
         const time = `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
         slots.push({
           date,
