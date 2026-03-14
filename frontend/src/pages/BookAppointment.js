@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Video, MessageCircle } from 'lucide-react';
+import { Video, MessageCircle } from 'lucide-react';
 import axios from 'axios';
 import { useAuth } from '@/context/AuthContext';
 import { toast } from 'sonner';
@@ -19,7 +19,7 @@ const loadRazorpay = () =>
     document.body.appendChild(script);
   });
 
-const DAYS_SHORT = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
+const DAYS_SHORT = ['Su','Mo','Tu','We','Th','Fr','Sa'];
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 
 function getDaysInMonth(year, month) { return new Date(year, month + 1, 0).getDate(); }
@@ -36,15 +36,15 @@ export default function BookAppointment() {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
-  const [calYear, setCalYear]       = useState(today.getFullYear());
-  const [calMonth, setCalMonth]     = useState(today.getMonth());
+  const [calYear, setCalYear]           = useState(today.getFullYear());
+  const [calMonth, setCalMonth]         = useState(today.getMonth());
   const [selectedDate, setSelectedDate] = useState(null);
   const [availableSlots, setAvailableSlots] = useState([]);
-  const [selectedTime, setSelectedTime]   = useState('');
+  const [selectedTime, setSelectedTime] = useState('');
   const [consultationType, setConsultationType] = useState('video');
-  const [reason, setReason]         = useState('');
+  const [reason, setReason]             = useState('');
   const [reasonTouched, setReasonTouched] = useState(false);
-  const [loading, setLoading]       = useState(false);
+  const [loading, setLoading]           = useState(false);
   const [doctorProfile, setDoctorProfile] = useState(null);
 
   const reasonError = reasonTouched && reason.trim().length === 0;
@@ -161,16 +161,15 @@ export default function BookAppointment() {
     }
   };
 
-  // Calendar rendering
-  const daysInMonth   = getDaysInMonth(calYear, calMonth);
-  const firstDay      = getFirstDayOfMonth(calYear, calMonth);
-  const calCells      = Array.from({ length: firstDay }, () => null)
+  // ── Calendar helpers ──
+  const daysInMonth = getDaysInMonth(calYear, calMonth);
+  const firstDay    = getFirstDayOfMonth(calYear, calMonth);
+  const calCells    = Array.from({ length: firstDay }, () => null)
     .concat(Array.from({ length: daysInMonth }, (_, i) => i + 1));
 
   const isTodayCell = (day) => {
     if (!day) return false;
-    const d = new Date(calYear, calMonth, day);
-    return d.toDateString() === today.toDateString();
+    return new Date(calYear, calMonth, day).toDateString() === today.toDateString();
   };
   const isSelectedCell = (day) => {
     if (!day || !selectedDate) return false;
@@ -179,8 +178,17 @@ export default function BookAppointment() {
   const isPastCell = (day) => {
     if (!day) return false;
     const d = new Date(calYear, calMonth, day);
-    d.setHours(0,0,0,0);
+    d.setHours(0, 0, 0, 0);
     return d < today;
+  };
+
+  // ── Calendar day style — FIX: today=ring, selected=filled, both selected+today=filled ──
+  const getCalDayStyle = (day) => {
+    if (!day) return { ...S.calDay, cursor: 'default' };
+    if (isPastCell(day)) return { ...S.calDay, ...S.calDayPast };
+    if (isSelectedCell(day)) return { ...S.calDay, ...S.calDaySel };   // selected wins
+    if (isTodayCell(day))    return { ...S.calDay, ...S.calDayToday }; // today = ring only
+    return S.calDay;
   };
 
   const nextSlot = availableSlots[0];
@@ -198,12 +206,12 @@ export default function BookAppointment() {
       <div style={S.progress}>
         {['Doctor','Schedule','Confirm','Payment'].map((label, i) => (
           <div key={label} style={S.stepWrap}>
-            {i > 0 && <div style={{...S.stepLine, ...(i <= 1 ? S.stepLineDone : {})}} />}
+            {i > 0 && <div style={{ ...S.stepLine, ...(i <= 1 ? S.stepLineDone : {}) }} />}
             <div style={S.stepCol}>
-              <div style={{...S.stepCirc, ...(i===0 ? S.sDone : i===1 ? S.sActive : S.sIdle)}}>
+              <div style={{ ...S.stepCirc, ...(i===0 ? S.sDone : i===1 ? S.sActive : S.sIdle) }}>
                 {i === 0 ? '✓' : i + 1}
               </div>
-              <span style={{...S.stepLbl, ...(i===1 ? S.stepLblActive : {})}}>{label}</span>
+              <span style={{ ...S.stepLbl, ...(i===1 ? S.stepLblActive : {}) }}>{label}</span>
             </div>
           </div>
         ))}
@@ -212,19 +220,13 @@ export default function BookAppointment() {
       {/* Doctor card */}
       {doctorProfile && (
         <div style={S.docCard}>
-          <div style={S.docAvatar}>
-            {doctorProfile.full_name?.charAt(0) || 'D'}
-          </div>
+          <div style={S.docAvatar}>{doctorProfile.full_name?.charAt(0) || 'D'}</div>
           <div style={S.docInfo}>
             <div style={S.docName}>Dr. {doctorProfile.full_name}</div>
-            <div style={S.docSpec}>
-              {doctorProfile.specialization || 'General Physician'}
-            </div>
+            <div style={S.docSpec}>{doctorProfile.specialization || 'General Physician'}</div>
             <div style={S.docBadges}>
-              <span style={{...S.badge, ...S.badgeGreen}}>
-                ₹{doctorProfile.consultation_fee} fee
-              </span>
-              <span style={{...S.badge, ...S.badgeBlue}}>✓ Verified</span>
+              <span style={{ ...S.badge, ...S.badgeGreen }}>₹{doctorProfile.consultation_fee} fee</span>
+              <span style={{ ...S.badge, ...S.badgeBlue }}>✓ Verified</span>
             </div>
           </div>
         </div>
@@ -242,21 +244,9 @@ export default function BookAppointment() {
             <button style={S.calArr} onClick={nextMonth}>›</button>
           </div>
           <div style={S.calGrid}>
-            {DAYS_SHORT.map(d => (
-              <div key={d} style={S.calDayName}>{d}</div>
-            ))}
+            {DAYS_SHORT.map(d => <div key={d} style={S.calDayName}>{d}</div>)}
             {calCells.map((day, idx) => (
-              <div
-                key={idx}
-                onClick={() => day && handleDateClick(day)}
-                style={{
-                  ...S.calDay,
-                  ...(isPastCell(day) ? S.calDayPast : {}),
-                  ...(isTodayCell(day) ? S.calDayToday : {}),
-                  ...(isSelectedCell(day) && !isTodayCell(day) ? S.calDaySel : {}),
-                  ...(!day ? { cursor: 'default' } : {}),
-                }}
-              >
+              <div key={idx} onClick={() => day && handleDateClick(day)} style={getCalDayStyle(day)}>
                 {day || ''}
               </div>
             ))}
@@ -267,32 +257,28 @@ export default function BookAppointment() {
         <div style={S.card}>
           <div style={S.cardTitle}>Consultation type</div>
           {[
-            { id: 'video', label: 'Video call',  sub: `Face-to-face · ₹${doctorProfile?.consultation_fee || ''}`, Icon: Video },
-            { id: 'chat',  label: 'Chat',         sub: `Text-based · ₹${doctorProfile?.consultation_fee || ''}`,  Icon: MessageCircle },
+            { id: 'video', label: 'Video call', sub: `Face-to-face · ₹${doctorProfile?.consultation_fee || ''}`, Icon: Video },
+            { id: 'chat',  label: 'Chat',        sub: `Text-based · ₹${doctorProfile?.consultation_fee || ''}`,  Icon: MessageCircle },
           ].map(opt => (
             <div
               key={opt.id}
               onClick={() => setConsultationType(opt.id)}
-              style={{...S.consultOpt, ...(consultationType===opt.id ? S.consultOptOn : {})}}
+              style={{ ...S.consultOpt, ...(consultationType === opt.id ? S.consultOptOn : {}) }}
             >
-              <div style={{
-                ...S.consultIcon,
-                background: opt.id==='video' ? '#E1F5EE' : '#E6F1FB',
-              }}>
+              <div style={{ ...S.consultIcon, background: opt.id==='video' ? '#E1F5EE' : '#E6F1FB' }}>
                 <opt.Icon size={16} color={opt.id==='video' ? '#085041' : '#0C447C'} />
               </div>
               <div>
                 <div style={S.consultTitle}>{opt.label}</div>
                 <div style={S.consultSub}>{opt.sub}</div>
               </div>
-              <div style={{...S.radio, ...(consultationType===opt.id ? S.radioOn : {})}} />
+              <div style={{ ...S.radio, ...(consultationType === opt.id ? S.radioOn : {}) }} />
             </div>
           ))}
 
           <div style={{ marginTop: 16 }}>
             <div style={S.cardTitle}>
-              Reason for visit&nbsp;
-              <span style={S.requiredStar}>*</span>
+              Reason for visit&nbsp;<span style={S.requiredStar}>*</span>
             </div>
             <textarea
               maxLength={200}
@@ -300,12 +286,10 @@ export default function BookAppointment() {
               onChange={e => setReason(e.target.value)}
               onBlur={() => setReasonTouched(true)}
               placeholder="Describe your health concern briefly..."
-              style={{...S.textarea, ...(reasonError ? S.textareaError : {})}}
+              style={{ ...S.textarea, ...(reasonError ? S.textareaError : {}) }}
             />
             <div style={S.charCountRow}>
-              {reasonError
-                ? <span style={S.errorMsg}>This field is required</span>
-                : <span />}
+              {reasonError ? <span style={S.errorMsg}>This field is required</span> : <span />}
               <span style={S.charCount}>{reason.length} / 200</span>
             </div>
           </div>
@@ -326,9 +310,7 @@ export default function BookAppointment() {
             Available time slots{selectedDate ? ` · ${selectedDate.getDate()} ${MONTHS[selectedDate.getMonth()]}` : ''}
           </div>
           <div style={S.slotHeaderRight}>
-            {nextSlot && (
-              <span style={S.nextTag}>Next available: {nextSlot.time}</span>
-            )}
+            {nextSlot && <span style={S.nextTag}>Next available: {nextSlot.time}</span>}
             <div style={S.legend}>
               <LegendDot color="#1D9E75" label="Selected" />
               <LegendDot color="#f3f4f6" border="0.5px solid #e5e7eb" label="Booked" />
@@ -343,21 +325,26 @@ export default function BookAppointment() {
           <p style={S.emptyMsg}>No available slots for this date</p>
         ) : (
           <div style={S.slotGrid}>
-            {availableSlots.map((slot, i) => (
-              <button
-                key={i}
-                type="button"
-                onClick={() => setSelectedTime(slot.time)}
-                style={{
-                  ...S.slotBtn,
-                  ...(selectedTime === slot.time ? S.slotSel : {}),
-                  ...(i === 0 && selectedTime !== slot.time ? S.slotNext : {}),
-                }}
-              >
-                {slot.time}
-                {i === 0 && <span style={S.nextDot} />}
-              </button>
-            ))}
+            {availableSlots.map((slot, i) => {
+              const isSel  = selectedTime === slot.time;
+              // FIX: next border + dot sirf tab jab koi bhi slot select nahi hua
+              const isNext = i === 0 && selectedTime === '';
+              return (
+                <button
+                  key={i}
+                  type="button"
+                  onClick={() => setSelectedTime(slot.time)}
+                  style={{
+                    ...S.slotBtn,
+                    ...(isSel  ? S.slotSel  : {}),
+                    ...(isNext ? S.slotNext : {}),
+                  }}
+                >
+                  {slot.time}
+                  {isNext && <span style={S.nextDot} />}
+                </button>
+              );
+            })}
           </div>
         )}
       </div>
@@ -375,7 +362,7 @@ export default function BookAppointment() {
           ].map(row => (
             <div key={row.label} style={S.summaryRow}>
               <span style={S.summaryLabel}>{row.label}</span>
-              <span style={{...S.summaryValue, ...(row.fee ? S.summaryFee : {})}}>
+              <span style={{ ...S.summaryValue, ...(row.fee ? S.summaryFee : {}) }}>
                 {row.value}
                 {row.tz && <span style={S.tzPill}> IST</span>}
               </span>
@@ -388,18 +375,28 @@ export default function BookAppointment() {
       <button
         onClick={handleBookAppointment}
         disabled={!isReady || loading}
-        style={{...S.confirmBtn, ...(!isReady || loading ? S.confirmBtnDisabled : {})}}
+        style={{ ...S.confirmBtn, ...(!isReady || loading ? S.confirmBtnDisabled : {}) }}
       >
         {loading ? 'Processing...' : 'Confirm appointment →'}
       </button>
 
       {/* Divider */}
       <div style={S.divider}>
-        <div style={S.divLine} /><span style={S.divText}>Additional information</span><div style={S.divLine} />
+        <div style={S.divLine} />
+        <span style={S.divText}>Additional information</span>
+        <div style={S.divLine} />
       </div>
 
-      {/* Reschedule */}
-      <div style={S.reschedule}>
+      {/* FIX: Reschedule — scroll to top to re-select date/time */}
+      <div
+        style={S.reschedule}
+        onClick={() => {
+          setSelectedDate(null);
+          setSelectedTime('');
+          setAvailableSlots([]);
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }}
+      >
         <span>↺</span>
         <span>Need to reschedule? Change your date or time</span>
       </div>
@@ -438,18 +435,15 @@ function LegendDot({ color, border, label }) {
   );
 }
 
-// ── Styles ─────────────────────────────────────────────
-const teal = '#1D9E75';
+const teal     = '#1D9E75';
 const tealDark = '#0F6E56';
 const tealLight = '#E1F5EE';
 
 const S = {
   page: { fontFamily:"'DM Sans','Segoe UI',sans-serif", maxWidth:960, margin:'0 auto', padding:'1.5rem 1.25rem 3rem', color:'#111' },
-
   header: { display:'flex', alignItems:'center', gap:12, marginBottom:'1.5rem' },
   backBtn: { width:34, height:34, borderRadius:'50%', border:'0.5px solid #d1d5db', background:'#fff', display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', fontSize:14, color:'#6b7280' },
   pageTitle: { fontSize:20, fontWeight:500, color:tealDark },
-
   progress: { display:'flex', alignItems:'center', marginBottom:'1.5rem' },
   stepWrap: { display:'flex', flex:1, alignItems:'center' },
   stepCol:  { display:'flex', flexDirection:'column', alignItems:'center', flex:1 },
@@ -461,7 +455,6 @@ const S = {
   sIdle:   { background:'#f3f4f6', color:'#9ca3af', border:'0.5px solid #e5e7eb' },
   stepLbl: { fontSize:11, marginTop:5, color:'#9ca3af', textAlign:'center' },
   stepLblActive: { color:tealDark, fontWeight:500 },
-
   docCard: { background:'#fff', border:'0.5px solid #e5e7eb', borderRadius:12, padding:'1rem 1.25rem', marginBottom:'1.25rem', display:'flex', alignItems:'center', gap:14 },
   docAvatar: { width:50, height:50, borderRadius:'50%', background:tealLight, display:'flex', alignItems:'center', justifyContent:'center', fontSize:18, fontWeight:500, color:tealDark, flexShrink:0 },
   docInfo: { flex:1 },
@@ -471,21 +464,19 @@ const S = {
   badge: { fontSize:11, padding:'3px 9px', borderRadius:999, fontWeight:500 },
   badgeGreen: { background:tealLight, color:tealDark },
   badgeBlue:  { background:'#E6F1FB', color:'#0C447C' },
-
   twoCol: { display:'grid', gridTemplateColumns:'1fr 1fr', gap:'1rem', marginBottom:'1rem' },
   card: { background:'#fff', border:'0.5px solid #e5e7eb', borderRadius:12, padding:'1.2rem 1.4rem', marginBottom:'1rem' },
   cardTitle: { fontSize:11, fontWeight:500, color:'#9ca3af', textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:'0.9rem' },
-
   calNav: { display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'0.85rem' },
   calMonth: { fontSize:14, fontWeight:500, color:'#111' },
   calArr: { width:26, height:26, borderRadius:'50%', border:'0.5px solid #e5e7eb', background:'#fff', display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', color:'#6b7280', fontSize:12 },
   calGrid: { display:'grid', gridTemplateColumns:'repeat(7,1fr)', gap:3, textAlign:'center' },
   calDayName: { fontSize:10, color:'#d1d5db', fontWeight:500, padding:'3px 0' },
-  calDay: { width:29, height:29, borderRadius:'50%', display:'flex', alignItems:'center', justifyContent:'center', fontSize:12, margin:'0 auto', cursor:'pointer', color:'#6b7280' },
+  calDay:      { width:29, height:29, borderRadius:'50%', display:'flex', alignItems:'center', justifyContent:'center', fontSize:12, margin:'0 auto', cursor:'pointer', color:'#6b7280' },
   calDayPast:  { color:'#e5e7eb', cursor:'default' },
-  calDayToday: { background:teal, color:'#fff', fontWeight:500 },
-  calDaySel:   { background:teal, color:'#fff' },
-
+  // FIX: today = green ring only (not filled), selected = filled green
+  calDayToday: { color:teal, fontWeight:600, border:`2px solid ${teal}`, borderRadius:'50%' },
+  calDaySel:   { background:teal, color:'#fff', border:'none' },
   consultOpt: { display:'flex', alignItems:'center', gap:10, padding:'10px 12px', border:'0.5px solid #e5e7eb', borderRadius:8, cursor:'pointer', marginBottom:8 },
   consultOptOn: { border:`1.5px solid ${teal}`, background:'#f2fbf8' },
   consultIcon: { width:32, height:32, borderRadius:8, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 },
@@ -493,18 +484,15 @@ const S = {
   consultSub:   { fontSize:11, color:'#9ca3af' },
   radio: { marginLeft:'auto', width:15, height:15, borderRadius:'50%', border:'2px solid #d1d5db', flexShrink:0 },
   radioOn: { borderColor:teal, background:teal, boxShadow:'inset 0 0 0 3px #fff' },
-
   requiredStar: { color:'#E24B4A', fontSize:12, textTransform:'none', letterSpacing:0 },
   textarea: { width:'100%', border:'0.5px solid #e5e7eb', borderRadius:8, padding:'10px 12px', fontSize:13, resize:'none', height:78, fontFamily:'inherit', background:'#fff', color:'#111', outline:'none', boxSizing:'border-box' },
   textareaError: { border:'1px solid #E24B4A', background:'#fff9f9' },
   charCountRow: { display:'flex', justifyContent:'space-between', alignItems:'center', marginTop:4 },
   charCount: { fontSize:11, color:'#d1d5db' },
   errorMsg:  { fontSize:11, color:'#E24B4A' },
-
   tzBar:  { display:'flex', alignItems:'center', gap:8, background:tealLight, borderRadius:8, padding:'9px 13px', marginBottom:'1rem' },
   tzText: { fontSize:12, color:tealDark, fontWeight:500 },
   tzSub:  { fontSize:11, color:teal, marginLeft:'auto' },
-
   slotsHeader: { display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'0.9rem', flexWrap:'wrap', gap:8 },
   slotHeaderRight: { display:'flex', alignItems:'center', gap:10, flexWrap:'wrap' },
   nextTag: { fontSize:11, background:'#FAEEDA', color:'#633806', padding:'3px 9px', borderRadius:999, fontWeight:500 },
@@ -513,22 +501,20 @@ const S = {
   slotGrid: { display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:8 },
   slotBtn: { padding:'12px 4px', border:'0.5px solid #e5e7eb', borderRadius:999, background:'#fff', color:'#111', fontSize:13, textAlign:'center', cursor:'pointer', position:'relative', fontFamily:'inherit' },
   slotSel:  { background:teal, color:'#fff', borderColor:tealDark, fontWeight:500 },
+  // FIX: next slot border — sirf tab jab koi slot select nahi
   slotNext: { border:`1.5px solid ${teal}` },
   nextDot:  { position:'absolute', top:-3, right:8, width:7, height:7, borderRadius:'50%', background:teal },
-
   summaryRow:   { display:'flex', justifyContent:'space-between', alignItems:'center', padding:'7px 0', borderBottom:'0.5px solid #f3f4f6' },
   summaryLabel: { fontSize:12, color:'#9ca3af' },
   summaryValue: { fontSize:13, fontWeight:500, color:'#111' },
   summaryFee:   { fontSize:16, color:tealDark },
   tzPill:       { fontSize:11, color:teal },
-
   confirmBtn: { width:'100%', background:teal, color:'#fff', border:'none', borderRadius:999, padding:15, fontSize:15, fontWeight:500, cursor:'pointer', marginBottom:'1.5rem' },
   confirmBtnDisabled: { opacity:0.45, cursor:'not-allowed' },
-
   divider: { display:'flex', alignItems:'center', gap:10, marginBottom:'1rem' },
   divLine: { flex:1, height:0.5, background:'#e5e7eb' },
   divText: { fontSize:11, color:'#d1d5db', whiteSpace:'nowrap' },
-
+  // FIX: reschedule — cursor pointer, resets selection
   reschedule: { display:'flex', alignItems:'center', gap:8, fontSize:13, color:'#185FA5', cursor:'pointer', padding:'11px 1.2rem', background:'#fff', border:'0.5px solid #e5e7eb', borderRadius:12, marginBottom:'1rem' },
-  listItem:   { fontSize:12, color:'#6b7280', padding:'5px 0', borderBottom:'0.5px solid #f3f4f6', lineHeight:1.5 },
+  listItem: { fontSize:12, color:'#6b7280', padding:'5px 0', borderBottom:'0.5px solid #f3f4f6', lineHeight:1.5 },
 };
