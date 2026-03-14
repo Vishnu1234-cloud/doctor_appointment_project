@@ -1,8 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Card, CardContent } from '@/components/ui/card';
 import { ArrowLeft, Send, Video, VideoOff, Mic, MicOff, PhoneOff, User } from 'lucide-react';
 import axios from 'axios';
 import { useAuth } from '@/context/AuthContext';
@@ -10,89 +7,101 @@ import { toast } from 'sonner';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8001';
 const API = `${BACKEND_URL}/api`;
-
-// WebSocket URL - use /api/ prefix for ingress compatibility
 const WS_URL = String(BACKEND_URL).replace('https://', 'wss://').replace('http://', 'ws://');
 
-// Default ICE servers for STUN
 const DEFAULT_ICE_SERVERS = {
-  iceServers: [
-    { urls: 'stun:stun.l.google.com:19302' },
-  ]
+  iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
+};
+
+function useWindowWidth() {
+  const [w, setW] = React.useState(window.innerWidth);
+  React.useEffect(() => {
+    const fn = () => setW(window.innerWidth);
+    window.addEventListener('resize', fn);
+    return () => window.removeEventListener('resize', fn);
+  }, []);
+  return w;
+}
+
+// ── Styles ──────────────────────────────────────────────
+const font = "'Plus Jakarta Sans','Segoe UI',sans-serif";
+const mono = "'JetBrains Mono','Courier New',monospace";
+
+const statusColors = {
+  connecting:    { bg:'#ca8a04', text:'#fff' },
+  reconnecting:  { bg:'#ea580c', text:'#fff' },
+  authenticating:{ bg:'#ca8a04', text:'#fff' },
+  waiting:       { bg:'#2563eb', text:'#fff' },
+  connected:     { bg:'#059669', text:'#fff' },
+  disconnected:  { bg:'#dc2626', text:'#fff' },
+  error:         { bg:'#dc2626', text:'#fff' },
+  call_ended:    { bg:'#6b7280', text:'#fff' },
 };
 
 export default function ConsultationRoom() {
   const { appointmentId } = useParams();
   const navigate = useNavigate();
   const { user, token } = useAuth();
+  const w = useWindowWidth();
+  const isMobile = w < 768;
 
-  const [appointment, setAppointment] = useState(null);
-  const [messages, setMessages] = useState([]);
-  const [newMessage, setNewMessage] = useState('');
-  const [videoEnabled, setVideoEnabled] = useState(true);
-  const [audioEnabled, setAudioEnabled] = useState(true);
+  const [appointment, setAppointment]     = useState(null);
+  const [messages, setMessages]           = useState([]);
+  const [newMessage, setNewMessage]       = useState('');
+  const [videoEnabled, setVideoEnabled]   = useState(true);
+  const [audioEnabled, setAudioEnabled]   = useState(true);
   const [connectionStatus, setConnectionStatus] = useState('connecting');
-  const [remoteUser, setRemoteUser] = useState(null);
-  const [isChatOnly, setIsChatOnly] = useState(false);
-  const [cameraError, setCameraError] = useState(null);
-
-  // Pagination State
-  const [skipMessages, setSkipMessages] = useState(0);
+  const [remoteUser, setRemoteUser]       = useState(null);
+  const [isChatOnly, setIsChatOnly]       = useState(false);
+  const [cameraError, setCameraError]     = useState(null);
+  const [showChat, setShowChat]           = useState(false); // mobile toggle
+  const [skipMessages, setSkipMessages]   = useState(0);
   const [hasMoreMessages, setHasMoreMessages] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
 
-  const localVideoRef = useRef(null);
-  const remoteVideoRef = useRef(null);
-  const localStreamRef = useRef(null);
+  const localVideoRef     = useRef(null);
+  const remoteVideoRef    = useRef(null);
+  const localStreamRef    = useRef(null);
   const peerConnectionRef = useRef(null);
-  const websocketRef = useRef(null);
-  const remoteUserIdRef = useRef(null);
-  const iceServersRef = useRef(DEFAULT_ICE_SERVERS);
+  const websocketRef      = useRef(null);
+  const remoteUserIdRef   = useRef(null);
+  const iceServersRef     = useRef(DEFAULT_ICE_SERVERS);
   const reconnectTimeoutRef = useRef(null);
+  const messagesEndRef    = useRef(null);
 
-  // Fetch appointment details and chat history
+  // Auto scroll to bottom on new message
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
+
   useEffect(() => {
     const fetchAppointment = async () => {
       try {
         const response = await axios.get(`${API}/appointments/${appointmentId}`);
         const apt = response.data;
         setAppointment(apt);
-
-        // Check if this is chat-only mode
         if (apt.consultation_type === 'chat') {
           setIsChatOnly(true);
-          console.log('Chat-only mode enabled');
+          setShowChat(true);
         }
-
-        // Fetch existing chat messages (first page)
         try {
           const limit = 50;
           const messagesResponse = await axios.get(`${API}/chat/messages/${appointmentId}?limit=${limit}&skip=0`);
           if (messagesResponse.data && messagesResponse.data.length > 0) {
             setMessages(messagesResponse.data.map(msg => ({
-              id: msg.id,
-              sender_id: msg.sender_id,
-              sender_role: msg.sender_role,
-              message: msg.message,
-              timestamp: msg.timestamp
+              id: msg.id, sender_id: msg.sender_id,
+              sender_role: msg.sender_role, message: msg.message, timestamp: msg.timestamp
             })));
             setSkipMessages(messagesResponse.data.length);
             if (messagesResponse.data.length < limit) setHasMoreMessages(false);
-          } else {
-            setHasMoreMessages(false);
-          }
-        } catch (msgError) {
-          console.log('No previous messages or error fetching:', msgError.message);
-        }
+          } else { setHasMoreMessages(false); }
+        } catch {}
       } catch (error) {
         toast.error('Failed to fetch appointment');
         navigate(user?.role === 'doctor' ? '/doctor/dashboard' : '/patient/dashboard');
       }
     };
-
-    if (appointmentId) {
-      fetchAppointment();
-    }
+    if (appointmentId) fetchAppointment();
   }, [appointmentId, navigate, user]);
 
   const fetchMoreMessages = async () => {
@@ -102,725 +111,463 @@ export default function ConsultationRoom() {
       const limit = 50;
       const response = await axios.get(`${API}/chat/messages/${appointmentId}?limit=${limit}&skip=${skipMessages}`);
       if (response.data && response.data.length > 0) {
-        setMessages(prev => [
-          ...response.data.map(msg => ({
-            id: msg.id,
-            sender_id: msg.sender_id,
-            sender_role: msg.sender_role,
-            message: msg.message,
-            timestamp: msg.timestamp
-          })),
-          ...prev
-        ]);
+        setMessages(prev => [...response.data.map(msg => ({ id:msg.id, sender_id:msg.sender_id, sender_role:msg.sender_role, message:msg.message, timestamp:msg.timestamp })), ...prev]);
         setSkipMessages(prev => prev + response.data.length);
         if (response.data.length < limit) setHasMoreMessages(false);
-      } else {
-        setHasMoreMessages(false);
-      }
-    } catch (error) {
-      toast.error('Failed to load older messages');
-    } finally {
-      setIsLoadingMore(false);
-    }
+      } else { setHasMoreMessages(false); }
+    } catch { toast.error('Failed to load older messages'); }
+    finally { setIsLoadingMore(false); }
   };
 
-  // Initialize local media stream
   const initializeLocalStream = useCallback(async () => {
-    // Skip video initialization in chat-only mode
-    if (isChatOnly) {
-      console.log('Skipping video initialization - chat-only mode');
-      return null;
-    }
-
+    if (isChatOnly) return null;
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          width: { ideal: 1280 },
-          height: { ideal: 720 }
-        },
-        audio: true
-      });
-
+      const stream = await navigator.mediaDevices.getUserMedia({ video:{ width:{ideal:1280}, height:{ideal:720} }, audio:true });
       localStreamRef.current = stream;
       setCameraError(null);
-
       if (localVideoRef.current) {
         localVideoRef.current.srcObject = stream;
-        // Ensure video plays
-        localVideoRef.current.play().catch(e => console.log('Autoplay prevented:', e));
+        localVideoRef.current.play().catch(() => {});
       }
-
       toast.success('Camera and microphone connected');
       return stream;
     } catch (error) {
-      console.error('Error accessing media devices:', error);
-
-      // Set specific error message based on error type
       if (error.name === 'NotFoundError' || error.name === 'DevicesNotFoundError') {
-        setCameraError('No camera/mic found. Please plug in a device.');
+        setCameraError('No camera/mic found.');
       } else if (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError') {
-        setCameraError('Camera/Mic permission denied. Please allow site permissions.');
+        setCameraError('Permission denied.');
       } else {
-        setCameraError('Camera unavailable or in use by another application.');
+        setCameraError('Camera unavailable.');
       }
-
-      toast.error('Could not access camera/microphone. Continuing without them.');
+      toast.error('Could not access camera/microphone.');
       return null;
     }
   }, [isChatOnly]);
 
-  // Create peer connection
   const createPeerConnection = useCallback((remoteUserId) => {
-    if (peerConnectionRef.current) {
-      peerConnectionRef.current.close();
-    }
-
+    if (peerConnectionRef.current) peerConnectionRef.current.close();
     const pc = new RTCPeerConnection(iceServersRef.current);
     peerConnectionRef.current = pc;
     remoteUserIdRef.current = remoteUserId;
-
-    // Add local tracks to peer connection
     if (localStreamRef.current) {
-      localStreamRef.current.getTracks().forEach(track => {
-        pc.addTrack(track, localStreamRef.current);
-      });
+      localStreamRef.current.getTracks().forEach(track => pc.addTrack(track, localStreamRef.current));
     }
-
-    // Handle remote stream
     pc.ontrack = (event) => {
-      console.log('Received remote track');
       if (remoteVideoRef.current && event.streams[0]) {
         remoteVideoRef.current.srcObject = event.streams[0];
         setConnectionStatus('connected');
         toast.success('Connected to remote user');
       }
     };
-
-    // Handle ICE candidates
     pc.onicecandidate = (event) => {
       if (event.candidate && websocketRef.current?.readyState === WebSocket.OPEN) {
-        websocketRef.current.send(JSON.stringify({
-          type: 'ice_candidate',
-          target_user_id: remoteUserId,
-          candidate: event.candidate
-        }));
+        websocketRef.current.send(JSON.stringify({ type:'ice_candidate', target_user_id:remoteUserId, candidate:event.candidate }));
       }
     };
-
-    // Handle connection state changes
     pc.onconnectionstatechange = () => {
-      console.log('Connection state:', pc.connectionState);
-      if (pc.connectionState === 'connected') {
-        setConnectionStatus('connected');
-      } else if (pc.connectionState === 'disconnected') {
-        setConnectionStatus('reconnecting');
-        toast.warning('Peer disconnected, waiting to reconnect...');
-      } else if (pc.connectionState === 'failed') {
+      if (pc.connectionState === 'connected') setConnectionStatus('connected');
+      else if (pc.connectionState === 'disconnected') { setConnectionStatus('reconnecting'); toast.warning('Peer disconnected...'); }
+      else if (pc.connectionState === 'failed') {
         setConnectionStatus('error');
-        toast.error('WebRTC Connection failed. Trying to reconnect...');
-        // explicitly create a new offer to force renegotiation
-        setTimeout(() => {
-          if (remoteUserIdRef.current) {
-            createOffer(remoteUserIdRef.current);
-          }
-        }, 1000);
+        toast.error('Connection failed. Reconnecting...');
+        setTimeout(() => { if (remoteUserIdRef.current) createOffer(remoteUserIdRef.current); }, 1000);
       }
     };
-
-    pc.oniceconnectionstatechange = () => {
-      console.log('ICE connection state:', pc.iceConnectionState);
-    };
-
     return pc;
   }, []);
 
-  // Create and send offer
   const createOffer = useCallback(async (targetUserId) => {
     const pc = createPeerConnection(targetUserId);
-
     try {
       const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
-
       if (websocketRef.current?.readyState === WebSocket.OPEN) {
-        websocketRef.current.send(JSON.stringify({
-          type: 'offer',
-          target_user_id: targetUserId,
-          offer: offer
-        }));
+        websocketRef.current.send(JSON.stringify({ type:'offer', target_user_id:targetUserId, offer }));
       }
-    } catch (error) {
-      console.error('Error creating offer:', error);
-    }
+    } catch (error) { console.error('Error creating offer:', error); }
   }, [createPeerConnection]);
 
-  // Handle received offer
   const handleOffer = useCallback(async (offer, fromUserId, fromRole) => {
-    console.log('Received offer from:', fromUserId);
-    setRemoteUser({ id: fromUserId, role: fromRole });
-
+    setRemoteUser({ id:fromUserId, role:fromRole });
     const pc = createPeerConnection(fromUserId);
-
     try {
       await pc.setRemoteDescription(new RTCSessionDescription(offer));
       const answer = await pc.createAnswer();
       await pc.setLocalDescription(answer);
-
       if (websocketRef.current?.readyState === WebSocket.OPEN) {
-        websocketRef.current.send(JSON.stringify({
-          type: 'answer',
-          target_user_id: fromUserId,
-          answer: answer
-        }));
+        websocketRef.current.send(JSON.stringify({ type:'answer', target_user_id:fromUserId, answer }));
       }
-    } catch (error) {
-      console.error('Error handling offer:', error);
-    }
+    } catch (error) { console.error('Error handling offer:', error); }
   }, [createPeerConnection]);
 
-  // Handle received answer
   const handleAnswer = useCallback(async (answer) => {
-    console.log('Received answer');
     if (peerConnectionRef.current) {
-      try {
-        await peerConnectionRef.current.setRemoteDescription(new RTCSessionDescription(answer));
-      } catch (error) {
-        console.error('Error setting remote description:', error);
-      }
+      try { await peerConnectionRef.current.setRemoteDescription(new RTCSessionDescription(answer)); }
+      catch (error) { console.error('Error setting remote description:', error); }
     }
   }, []);
 
-  // Handle received ICE candidate
   const handleIceCandidate = useCallback(async (candidate) => {
     if (peerConnectionRef.current) {
-      try {
-        await peerConnectionRef.current.addIceCandidate(new RTCIceCandidate(candidate));
-      } catch (error) {
-        console.error('Error adding ICE candidate:', error);
-      }
+      try { await peerConnectionRef.current.addIceCandidate(new RTCIceCandidate(candidate)); }
+      catch (error) { console.error('Error adding ICE candidate:', error); }
     }
   }, []);
 
-  // Initialize WebSocket connection
   useEffect(() => {
     if (!token || !appointmentId || !appointment) return;
-
     let ws;
     let reconnectAttempts = 0;
     const maxReconnectAttempts = 5;
 
     const connectWebSocket = async () => {
-      // Only initialize video if not chat-only
-      if (!isChatOnly) {
-        await initializeLocalStream();
-      } else {
-        console.log('Chat-only mode: Skipping video setup');
-      }
-
+      if (!isChatOnly) await initializeLocalStream();
       ws = new WebSocket(`${WS_URL}/api/ws/consultation/${appointmentId}`);
       websocketRef.current = ws;
 
       ws.onopen = () => {
-        console.log('WebSocket connected');
         setConnectionStatus('authenticating');
-
-        // Send authentication
-        ws.send(JSON.stringify({
-          type: 'auth',
-          token: token
-        }));
+        ws.send(JSON.stringify({ type:'auth', token }));
       };
 
       ws.onmessage = (event) => {
         const data = JSON.parse(event.data);
-        console.log('WS message:', data.type);
-
         switch (data.type) {
           case 'auth_success':
-            if (data.ice_servers && data.ice_servers.length > 0) {
-              iceServersRef.current = { iceServers: data.ice_servers };
-            }
-            // Reset reconnect attempts
+            if (data.ice_servers?.length > 0) iceServersRef.current = { iceServers: data.ice_servers };
             reconnectAttempts = 0;
             setConnectionStatus('waiting');
             toast.success('Connected to consultation room');
-
-            // If other users are already in the room and NOT chat-only, initiate call
-            if (data.room_users && data.room_users.length > 0 && !isChatOnly) {
-              const otherUser = data.room_users[0];
-              setRemoteUser({ id: otherUser.user_id, role: otherUser.role });
-              // Initiator creates the offer
-              createOffer(otherUser.user_id);
-            } else if (data.room_users && data.room_users.length > 0) {
-              // Chat-only: just set remote user
-              const otherUser = data.room_users[0];
-              setRemoteUser({ id: otherUser.user_id, role: otherUser.role });
+            if (data.room_users?.length > 0 && !isChatOnly) {
+              const other = data.room_users[0];
+              setRemoteUser({ id:other.user_id, role:other.role });
+              createOffer(other.user_id);
+            } else if (data.room_users?.length > 0) {
+              setRemoteUser({ id:data.room_users[0].user_id, role:data.room_users[0].role });
               setConnectionStatus('connected');
             }
             break;
-
           case 'user_joined':
-            toast.info(`${data.user_role === 'doctor' ? 'Doctor' : 'Patient'} joined the consultation`);
-            setRemoteUser({ id: data.user_id, role: data.user_role });
-            // New user joined, create offer if NOT chat-only and we haven't already
-            if (!peerConnectionRef.current && !isChatOnly) {
-              createOffer(data.user_id);
-            } else if (isChatOnly) {
-              setConnectionStatus('connected');
-            }
+            toast.info(`${data.user_role === 'doctor' ? 'Doctor' : 'Patient'} joined`);
+            setRemoteUser({ id:data.user_id, role:data.user_role });
+            if (!peerConnectionRef.current && !isChatOnly) createOffer(data.user_id);
+            else if (isChatOnly) setConnectionStatus('connected');
             break;
-
           case 'user_left':
-            toast.warning(`${data.user_role === 'doctor' ? 'Doctor' : 'Patient'} left the consultation`);
+            toast.warning(`${data.user_role === 'doctor' ? 'Doctor' : 'Patient'} left`);
             setRemoteUser(null);
             setConnectionStatus('waiting');
-            if (remoteVideoRef.current) {
-              remoteVideoRef.current.srcObject = null;
-            }
-            if (peerConnectionRef.current) {
-              peerConnectionRef.current.close();
-              peerConnectionRef.current = null;
-            }
+            if (remoteVideoRef.current) remoteVideoRef.current.srcObject = null;
+            if (peerConnectionRef.current) { peerConnectionRef.current.close(); peerConnectionRef.current = null; }
             break;
-
-          case 'offer':
-            if (!isChatOnly) {
-              handleOffer(data.offer, data.from_user_id, data.from_role);
-            }
-            break;
-
-          case 'answer':
-            if (!isChatOnly) {
-              handleAnswer(data.answer);
-            }
-            break;
-
-          case 'ice_candidate':
-            if (!isChatOnly) {
-              handleIceCandidate(data.candidate);
-            }
-            break;
-
+          case 'offer':    if (!isChatOnly) handleOffer(data.offer, data.from_user_id, data.from_role); break;
+          case 'answer':   if (!isChatOnly) handleAnswer(data.answer); break;
+          case 'ice_candidate': if (!isChatOnly) handleIceCandidate(data.candidate); break;
           case 'chat_message':
-            // Add new message and increment skip token locally
-            setMessages(prev => [...prev, {
-              id: data.id || Date.now(),
-              sender_id: data.from_user_id,
-              sender_role: data.from_role,
-              message: data.message,
-              timestamp: data.timestamp
-            }]);
+            setMessages(prev => [...prev, { id:data.id||Date.now(), sender_id:data.from_user_id, sender_role:data.from_role, message:data.message, timestamp:data.timestamp }]);
             setSkipMessages(prev => prev + 1);
             break;
-
-          case 'chat_message_ack':
-            console.log(`Message successfully delivered (Server ID: ${data.msgId})`);
-            break;
-
-          case 'error':
-            toast.error(data.message);
-            break;
+          case 'error': toast.error(data.message); break;
         }
       };
 
-      ws.onerror = (error) => {
-        console.error('WebSocket error:', error);
-        setConnectionStatus('error');
-      };
-
+      ws.onerror = () => setConnectionStatus('error');
       ws.onclose = (event) => {
-        console.log('WebSocket closed code:', event.code);
-        if (event.code === 1000) return; // Normal closure (e.g., leave button)
-
+        if (event.code === 1000) return;
         if (reconnectAttempts < maxReconnectAttempts) {
           reconnectAttempts++;
           setConnectionStatus('reconnecting');
           reconnectTimeoutRef.current = setTimeout(connectWebSocket, 2000 * reconnectAttempts);
         } else {
           setConnectionStatus('disconnected');
-          toast.error('Signaling connection lost permanently.');
+          toast.error('Connection lost permanently.');
         }
       };
     };
 
     connectWebSocket();
-
     return () => {
-      if (reconnectTimeoutRef.current) {
-        clearTimeout(reconnectTimeoutRef.current);
-      }
-      if (ws) {
-        // Normal closure (1000)
-        ws.close(1000, "Component unmounting");
-      }
-      if (localStreamRef.current) {
-        localStreamRef.current.getTracks().forEach(track => track.stop());
-      }
-      if (peerConnectionRef.current) {
-        peerConnectionRef.current.close();
-      }
+      if (reconnectTimeoutRef.current) clearTimeout(reconnectTimeoutRef.current);
+      if (ws) ws.close(1000, 'Component unmounting');
+      if (localStreamRef.current) localStreamRef.current.getTracks().forEach(t => t.stop());
+      if (peerConnectionRef.current) peerConnectionRef.current.close();
     };
   }, [token, appointmentId, appointment, isChatOnly, initializeLocalStream, createOffer, handleOffer, handleAnswer, handleIceCandidate]);
 
   const toggleVideo = () => {
     if (localStreamRef.current) {
-      const videoTrack = localStreamRef.current.getVideoTracks()[0];
-      if (videoTrack) {
-        videoTrack.enabled = !videoTrack.enabled;
-        setVideoEnabled(videoTrack.enabled);
-      }
+      const vt = localStreamRef.current.getVideoTracks()[0];
+      if (vt) { vt.enabled = !vt.enabled; setVideoEnabled(vt.enabled); }
     }
   };
 
   const toggleAudio = () => {
     if (localStreamRef.current) {
-      const audioTrack = localStreamRef.current.getAudioTracks()[0];
-      if (audioTrack) {
-        audioTrack.enabled = !audioTrack.enabled;
-        setAudioEnabled(audioTrack.enabled);
-      }
+      const at = localStreamRef.current.getAudioTracks()[0];
+      if (at) { at.enabled = !at.enabled; setAudioEnabled(at.enabled); }
     }
   };
 
   const endCall = () => {
     if (websocketRef.current?.readyState === WebSocket.OPEN) {
-      websocketRef.current.send(JSON.stringify({ type: 'leave' }));
+      websocketRef.current.send(JSON.stringify({ type:'leave' }));
       websocketRef.current.close();
     }
-    if (localStreamRef.current) {
-      localStreamRef.current.getTracks().forEach(track => track.stop());
-    }
-    if (peerConnectionRef.current) {
-      peerConnectionRef.current.close();
-    }
+    if (localStreamRef.current) localStreamRef.current.getTracks().forEach(t => t.stop());
+    if (peerConnectionRef.current) peerConnectionRef.current.close();
     navigate(user?.role === 'doctor' ? '/doctor/dashboard' : '/patient/dashboard');
   };
 
   const handleSendMessage = (e) => {
     e.preventDefault();
     if (!newMessage.trim()) return;
-
     if (websocketRef.current?.readyState === WebSocket.OPEN) {
-      websocketRef.current.send(JSON.stringify({
-        type: 'chat_message',
-        message: newMessage
-      }));
+      websocketRef.current.send(JSON.stringify({ type:'chat_message', message:newMessage }));
       setNewMessage('');
-    } else {
-      toast.error('Not connected to chat');
-    }
+    } else { toast.error('Not connected to chat'); }
   };
 
-  const getStatusDisplay = () => {
-    switch (connectionStatus) {
-      case 'connecting':
-        return { text: 'Connecting...', color: 'bg-yellow-500' };
-      case 'reconnecting':
-        return { text: 'Reconnecting...', color: 'bg-orange-500' };
-      case 'authenticating':
-        return { text: 'Authenticating...', color: 'bg-yellow-500' };
-      case 'waiting':
-        return { text: 'Waiting for other participant...', color: 'bg-blue-500' };
-      case 'connected':
-        return { text: 'Connected', color: 'bg-green-500' };
-      case 'disconnected':
-        return { text: 'Disconnected', color: 'bg-red-500' };
-      case 'error':
-        return { text: 'Connection Error', color: 'bg-red-500' };
-      case 'call_ended':
-        return { text: 'Call Ended', color: 'bg-gray-500' };
-      default:
-        return { text: 'Unknown', color: 'bg-gray-500' };
-    }
-  };
-
-  const status = getStatusDisplay();
+  const statusInfo = statusColors[connectionStatus] || statusColors.call_ended;
+  const statusText = {
+    connecting:'Connecting...', reconnecting:'Reconnecting...', authenticating:'Authenticating...',
+    waiting:'Waiting for participant...', connected:'Connected', disconnected:'Disconnected',
+    error:'Connection Error', call_ended:'Call Ended'
+  }[connectionStatus] || 'Unknown';
 
   if (!appointment) {
-    return <div className="min-h-screen flex items-center justify-center" data-testid="loading">Loading...</div>;
+    return (
+      <div style={{ minHeight:'100vh', display:'flex', alignItems:'center', justifyContent:'center', background:'#0f172a', color:'#fff', fontFamily:font }} data-testid="loading">
+        Loading...
+      </div>
+    );
   }
 
+  // ── Chat Panel (shared between chat-only and video+chat) ──
+  const ChatPanel = ({ fullHeight }) => (
+    <div style={{ display:'flex', flexDirection:'column', height:fullHeight ? '100%' : isMobile ? 'calc(100vh - 120px)' : 'calc(100vh - 140px)', background:'#fff', borderRadius:16, overflow:'hidden' }}
+      data-testid={isChatOnly ? 'chat-only-area' : 'chat-area'}>
+      {isChatOnly && (
+        <div style={{ padding:'1rem 1.25rem', borderBottom:'1px solid #f3f4f6' }}>
+          <h2 style={{ fontSize:18, fontWeight:700, color:'#1e293b', margin:0, fontFamily:font }} data-testid="chat-only-title">Chat Consultation</h2>
+          <p style={{ fontSize:12, color:'#6b7280', marginTop:4, fontFamily:mono }}>
+            {remoteUser ? `Connected with ${remoteUser.role === 'doctor' ? 'Doctor' : 'Patient'}` : 'Waiting for participant...'}
+          </p>
+        </div>
+      )}
+      {!isChatOnly && (
+        <div style={{ padding:'0.75rem 1rem', borderBottom:'1px solid #f3f4f6' }}>
+          <h3 style={{ fontSize:14, fontWeight:700, color:'#1e293b', margin:0 }} data-testid="chat-title">Chat</h3>
+        </div>
+      )}
+
+      {/* Messages */}
+      <div style={{ flex:1, overflowY:'auto', padding:'0.75rem', display:'flex', flexDirection:'column', gap:8 }} data-testid="messages-container">
+        {hasMoreMessages && (
+          <button onClick={fetchMoreMessages} disabled={isLoadingMore}
+            style={{ alignSelf:'center', background:'none', border:'1px solid #e5e7eb', borderRadius:999, padding:'4px 12px', fontSize:11, color:'#6b7280', cursor:'pointer', fontFamily:mono, marginBottom:4 }}>
+            {isLoadingMore ? 'Loading...' : 'Load previous messages'}
+          </button>
+        )}
+        {messages.length === 0 && !hasMoreMessages ? (
+          <p style={{ textAlign:'center', color:'#9ca3af', fontSize:13, padding:'2rem 0', margin:'auto 0', fontFamily:mono }}>
+            {isChatOnly ? 'No messages yet. Start the conversation!' : 'No messages yet'}
+          </p>
+        ) : (
+          messages.map((msg, index) => (
+            <div key={msg.id || index} data-testid={`message-${index}`}
+              style={{ display:'flex', justifyContent:msg.sender_id === user?.id ? 'flex-end' : 'flex-start' }}>
+              <div style={{
+                maxWidth:'80%', borderRadius:14, padding:'8px 12px',
+                background: msg.sender_id === user?.id ? '#4f46e5' : '#f1f5f9',
+                color: msg.sender_id === user?.id ? '#fff' : '#1e293b',
+              }}>
+                <p style={{ fontSize:10, fontWeight:600, marginBottom:3, opacity:0.75, fontFamily:mono }}>
+                  {msg.sender_role === 'doctor' ? 'Doctor' : 'Patient'}
+                </p>
+                <p style={{ fontSize:13, margin:0, lineHeight:1.5 }}>{msg.message}</p>
+              </div>
+            </div>
+          ))
+        )}
+        <div ref={messagesEndRef} />
+      </div>
+
+      {/* Input */}
+      <form onSubmit={handleSendMessage}
+        style={{ display:'flex', gap:8, padding:'0.75rem', borderTop:'1px solid #f3f4f6' }}>
+        <input
+          value={newMessage}
+          onChange={(e) => setNewMessage(e.target.value)}
+          placeholder="Type a message..."
+          disabled={connectionStatus === 'connecting' || connectionStatus === 'error'}
+          data-testid="message-input"
+          style={{ flex:1, padding:'10px 14px', border:'1px solid #e5e7eb', borderRadius:999, fontSize:13, outline:'none', fontFamily:font, background:'#f9fafb' }}
+        />
+        <button type="submit" disabled={!newMessage.trim() || connectionStatus === 'connecting' || connectionStatus === 'error'}
+          data-testid="send-button"
+          style={{ width:38, height:38, borderRadius:'50%', background:'#4f46e5', border:'none', display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', flexShrink:0, opacity:!newMessage.trim()?0.5:1 }}>
+          <Send size={16} color="#fff" />
+        </button>
+      </form>
+    </div>
+  );
+
   return (
-    <div className="min-h-screen bg-slate-900" data-testid="consultation-room">
-      <header className="bg-slate-800 shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <Button
-                onClick={endCall}
-                variant="ghost"
-                size="sm"
-                className="text-white hover:bg-slate-700"
-                data-testid="back-button"
-              >
-                <ArrowLeft size={20} />
-              </Button>
-              <h1 className="text-xl font-serif font-bold text-white" data-testid="consultation-title">
-                {isChatOnly ? 'Chat Consultation' : 'Video Consultation'}
-              </h1>
-              <span className={`px-3 py-1 rounded-full text-xs text-white ${status.color}`}>
-                {status.text}
-              </span>
-            </div>
-            <div className="flex gap-2">
-              {!isChatOnly && (
-                <>
-                  <Button
-                    variant={videoEnabled ? 'default' : 'destructive'}
-                    size="sm"
-                    onClick={toggleVideo}
-                    className="rounded-full"
-                    data-testid="video-toggle-button"
-                  >
-                    {videoEnabled ? <Video size={20} /> : <VideoOff size={20} />}
-                  </Button>
-                  <Button
-                    variant={audioEnabled ? 'default' : 'destructive'}
-                    size="sm"
-                    onClick={toggleAudio}
-                    className="rounded-full"
-                    data-testid="audio-toggle-button"
-                  >
-                    {audioEnabled ? <Mic size={20} /> : <MicOff size={20} />}
-                  </Button>
-                </>
-              )}
-              <Button
-                variant="destructive"
-                size="sm"
-                onClick={endCall}
-                className="rounded-full"
-                data-testid="end-call-button"
-              >
-                <PhoneOff size={20} />
-              </Button>
-            </div>
+    <div style={{ minHeight:'100vh', background:'#0f172a', fontFamily:font }} data-testid="consultation-room">
+      {/* Header */}
+      <header style={{ background:'#1e293b', borderBottom:'1px solid #334155', padding:'0 0.875rem' }}>
+        <div style={{ height:isMobile?'auto':56, display:'flex', alignItems:'center', justifyContent:'space-between', flexWrap:isMobile?'wrap':'nowrap', padding:isMobile?'8px 0':'0', gap:isMobile?6:0 }}>
+          <div style={{ display:'flex', alignItems:'center', gap:8, minWidth:0 }}>
+            <button onClick={endCall} data-testid="back-button"
+              style={{ width:32, height:32, borderRadius:'50%', border:'1px solid #475569', background:'transparent', display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', color:'#94a3b8', flexShrink:0 }}>
+              <ArrowLeft size={15} />
+            </button>
+            <h1 style={{ fontSize:isMobile?13:16, fontWeight:700, color:'#f1f5f9', margin:0, whiteSpace:'nowrap' }} data-testid="consultation-title">
+              {isChatOnly ? 'Chat Consultation' : 'Video Consultation'}
+            </h1>
+            <span style={{ fontSize:10, padding:'2px 8px', borderRadius:999, background:statusInfo.bg, color:statusInfo.text, fontFamily:mono, whiteSpace:'nowrap', flexShrink:0 }}>
+              {isMobile ? statusText.replace('participant...','...') : statusText}
+            </span>
+          </div>
+
+          <div style={{ display:'flex', alignItems:'center', gap:6, flexShrink:0 }}>
+            {isMobile && !isChatOnly && (
+              <button onClick={() => setShowChat(s => !s)}
+                style={{ padding:'5px 10px', borderRadius:999, border:'1px solid #475569', background:showChat?'#4f46e5':'transparent', color:'#fff', fontSize:10, fontFamily:mono, cursor:'pointer', whiteSpace:'nowrap' }}>
+                {showChat ? '📹' : '💬'}
+              </button>
+            )}
+            {!isChatOnly && (
+              <>
+                <button onClick={toggleVideo} data-testid="video-toggle-button"
+                  style={{ width:32, height:32, borderRadius:'50%', border:'none', background:videoEnabled?'#4f46e5':'#dc2626', display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', flexShrink:0 }}>
+                  {videoEnabled ? <Video size={14} color="#fff" /> : <VideoOff size={14} color="#fff" />}
+                </button>
+                <button onClick={toggleAudio} data-testid="audio-toggle-button"
+                  style={{ width:32, height:32, borderRadius:'50%', border:'none', background:audioEnabled?'#4f46e5':'#dc2626', display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', flexShrink:0 }}>
+                  {audioEnabled ? <Mic size={14} color="#fff" /> : <MicOff size={14} color="#fff" />}
+                </button>
+              </>
+            )}
+            <button onClick={endCall} data-testid="end-call-button"
+              style={{ width:32, height:32, borderRadius:'50%', border:'none', background:'#dc2626', display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', flexShrink:0 }}>
+              <PhoneOff size={14} color="#fff" />
+            </button>
           </div>
         </div>
       </header>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      {/* Body */}
+      <div style={{ padding:isMobile?'0.75rem 0.875rem':'1.25rem', boxSizing:'border-box', width:'100%' }}>
         {isChatOnly ? (
-          // Chat-only mode: Full-width chat
-          <Card className="rounded-2xl border-none shadow-lg bg-white max-w-4xl mx-auto h-[calc(100vh-180px)]" data-testid="chat-only-area">
-            <CardContent className="p-6 h-full flex flex-col">
-              <div className="mb-4">
-                <h2 className="text-2xl font-serif font-bold mb-2" data-testid="chat-only-title">Chat Consultation</h2>
-                <p className="text-sm text-muted-foreground">
-                  {remoteUser ? `Connected with ${remoteUser.role === 'doctor' ? 'Doctor' : 'Patient'}` : 'Waiting for other participant...'}
-                </p>
-              </div>
-
-              <div className="flex-1 overflow-y-auto mb-4 space-y-3 border rounded-xl p-4 bg-slate-50 flex flex-col" data-testid="messages-container">
-                {hasMoreMessages && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={fetchMoreMessages}
-                    disabled={isLoadingMore}
-                    className="self-center mb-2 text-xs opacity-70"
-                  >
-                    {isLoadingMore ? 'Loading...' : 'Load previous messages'}
-                  </Button>
-                )}
-                {messages.length === 0 && !hasMoreMessages ? (
-                  <p className="text-center text-muted-foreground text-sm py-8 my-auto">No messages yet. Start the conversation!</p>
-                ) : (
-                  messages.map((msg, index) => (
-                    <div
-                      key={msg.id || index}
-                      className={`flex ${msg.sender_id === user?.id ? 'justify-end' : 'justify-start'}`}
-                      data-testid={`message-${index}`}
-                    >
-                      <div
-                        className={`max-w-[75%] rounded-2xl px-4 py-3 ${msg.sender_id === user?.id
-                          ? 'bg-primary text-white'
-                          : 'bg-white border text-foreground'
-                          }`}
-                      >
-                        <p className="text-xs font-medium mb-1 opacity-75">
-                          {msg.sender_role === 'doctor' ? 'Doctor' : 'Patient'}
-                        </p>
-                        <p className="text-sm">{msg.message}</p>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-
-              <form onSubmit={handleSendMessage} className="flex gap-3">
-                <Input
-                  value={newMessage}
-                  onChange={(e) => setNewMessage(e.target.value)}
-                  placeholder="Type your message..."
-                  className="rounded-full h-12"
-                  disabled={connectionStatus === 'connecting' || connectionStatus === 'error'}
-                  data-testid="message-input"
-                />
-                <Button
-                  type="submit"
-                  size="lg"
-                  className="rounded-full px-6"
-                  disabled={connectionStatus === 'connecting' || connectionStatus === 'error' || !newMessage.trim()}
-                  data-testid="send-button"
-                >
-                  <Send size={20} />
-                </Button>
-              </form>
-            </CardContent>
-          </Card>
-        ) : (
-          // Video mode: Video + Chat side by side
-          <div className="grid lg:grid-cols-4 gap-6">
-            {/* Video Area */}
-            <div className="lg:col-span-3">
-              <div className="grid grid-cols-2 gap-4">
-                {/* Remote Video (Main) */}
-                <Card className="col-span-2 rounded-2xl border-none shadow-lg overflow-hidden bg-slate-800" data-testid="remote-video-area">
-                  <CardContent className="p-0 relative aspect-video">
-                    {remoteUser && connectionStatus === 'connected' ? (
-                      <video
-                        ref={remoteVideoRef}
-                        autoPlay
-                        playsInline
-                        className="w-full h-full object-cover"
-                        data-testid="remote-video"
-                      />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center bg-slate-800">
-                        <div className="text-center text-white p-4 max-w-sm mx-auto">
-                          {connectionStatus === 'disconnected' ? (
-                            <>
-                              <PhoneOff size={64} className="mx-auto mb-4 opacity-50 text-red-400" />
-                              <p className="text-lg opacity-90 text-red-200 mb-2">Peer Disconnected</p>
-                              <p className="text-sm opacity-70">The other user lost connection or left the call.</p>
-                            </>
-                          ) : connectionStatus === 'reconnecting' ? (
-                            <>
-                              <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-orange-500 mx-auto mb-4"></div>
-                              <p className="text-lg opacity-90 text-orange-400 mb-2">Reconnecting...</p>
-                              <p className="text-sm opacity-70">Attempting to restore the video connection.</p>
-                            </>
-                          ) : connectionStatus === 'error' ? (
-                            <>
-                              <PhoneOff size={64} className="mx-auto mb-4 opacity-50 text-red-500" />
-                              <p className="text-lg font-semibold text-red-500 mb-2">Connection Error</p>
-                              <p className="text-sm opacity-80 mb-4 text-slate-300">Could not establish secure WebRTC layer.</p>
-                              <Button variant="outline" size="sm" onClick={() => window.location.reload()} className="text-slate-200 bg-slate-700 hover:bg-slate-600 border-none">Reload Consultation</Button>
-                            </>
-                          ) : (
-                            <>
-                              <div className="animate-pulse">
-                                <User size={64} className="mx-auto mb-4 opacity-50" />
-                                <p className="text-lg opacity-75">Waiting for {user?.role === 'doctor' ? 'patient' : 'doctor'} to join...</p>
-                              </div>
-                            </>
-                          )}
-                        </div>
-                      </div>
-                    )}
-                    {remoteUser && (
-                      <div className="absolute bottom-4 left-4 bg-black/50 text-white px-3 py-1 rounded-full text-sm">
-                        {remoteUser.role === 'doctor' ? 'Doctor' : 'Patient'}
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-
-                {/* Local Video (Picture-in-picture) */}
-                <Card className="absolute bottom-24 right-8 w-64 rounded-2xl border-none shadow-lg overflow-hidden" data-testid="local-video-area">
-                  <CardContent className="p-0 relative aspect-video bg-slate-900">
-                    <video
-                      ref={localVideoRef}
-                      autoPlay
-                      playsInline
-                      muted
-                      className="w-full h-full object-cover mirror"
-                      data-testid="local-video"
-                    />
-                    <div className="absolute bottom-2 left-2 bg-black/50 text-white px-2 py-0.5 rounded-full text-xs">
-                      You ({user?.role === 'doctor' ? 'Doctor' : 'Patient'})
-                    </div>
-                    {!videoEnabled && !cameraError && (
-                      <div className="absolute inset-0 flex items-center justify-center bg-slate-900 text-white">
-                        <div className="text-center">
-                          <VideoOff size={32} className="mx-auto mb-1" />
-                          <p className="text-xs">Camera off</p>
-                        </div>
-                      </div>
-                    )}
-                    {cameraError && (
-                      <div className="absolute inset-0 flex items-center justify-center bg-slate-900 text-white">
-                        <div className="text-center">
-                          <User size={32} className="mx-auto mb-1 opacity-50" />
-                          <p className="text-xs">{cameraError}</p>
-                        </div>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              </div>
+          <div style={{ maxWidth:720, margin:'0 auto', height:'calc(100vh - 130px)' }}>
+            <ChatPanel fullHeight />
+          </div>
+        ) : isMobile ? (
+          showChat ? (
+            <div style={{ height:'calc(100vh - 130px)' }}>
+              <ChatPanel fullHeight />
             </div>
-
-            {/* Chat Area */}
-            <div className="lg:col-span-1">
-              <Card className="rounded-2xl border-none shadow-lg bg-white h-[calc(100vh-180px)]" data-testid="chat-area">
-                <CardContent className="p-4 h-full flex flex-col">
-                  <h3 className="text-lg font-serif font-bold mb-4" data-testid="chat-title">Chat</h3>
-                  <div className="flex-1 overflow-y-auto mb-4 space-y-3 flex flex-col" data-testid="messages-container">
-                    {hasMoreMessages && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={fetchMoreMessages}
-                        disabled={isLoadingMore}
-                        className="self-center mb-2 text-xs opacity-70"
-                      >
-                        {isLoadingMore ? 'Loading...' : 'Load previous messages'}
-                      </Button>
-                    )}
-                    {messages.length === 0 && !hasMoreMessages ? (
-                      <p className="text-center text-muted-foreground text-sm py-8 my-auto">No messages yet</p>
+          ) : (
+            <div>
+              {/* Remote video */}
+              <div style={{ background:'#1e293b', borderRadius:12, overflow:'hidden', aspectRatio:'16/9', width:'100%', marginBottom:10, position:'relative' }} data-testid="remote-video-area">
+                {remoteUser && connectionStatus === 'connected' ? (
+                  <video ref={remoteVideoRef} autoPlay playsInline style={{ width:'100%', height:'100%', objectFit:'cover' }} data-testid="remote-video" />
+                ) : (
+                  <div style={{ width:'100%', height:'100%', display:'flex', alignItems:'center', justifyContent:'center', color:'#fff', textAlign:'center', padding:'1rem' }}>
+                    {connectionStatus === 'error' ? (
+                      <div>
+                        <PhoneOff size={36} color="#ef4444" style={{ margin:'0 auto 8px' }} />
+                        <p style={{ color:'#fca5a5', fontSize:13, marginBottom:8 }}>Connection Error</p>
+                        <button onClick={() => window.location.reload()} style={{ padding:'6px 14px', background:'#334155', border:'none', borderRadius:999, color:'#fff', fontSize:12, cursor:'pointer' }}>Reload</button>
+                      </div>
                     ) : (
-                      messages.map((msg, index) => (
-                        <div
-                          key={msg.id || index}
-                          className={`flex ${msg.sender_id === user?.id ? 'justify-end' : 'justify-start'}`}
-                          data-testid={`message-${index}`}
-                        >
-                          <div
-                            className={`max-w-[85%] rounded-2xl px-3 py-2 ${msg.sender_id === user?.id
-                              ? 'bg-primary text-white'
-                              : 'bg-slate-100 text-foreground'
-                              }`}
-                          >
-                            <p className="text-xs font-medium mb-1 opacity-75">
-                              {msg.sender_role === 'doctor' ? 'Doctor' : 'Patient'}
-                            </p>
-                            <p className="text-sm">{msg.message}</p>
-                          </div>
-                        </div>
-                      ))
+                      <div style={{ opacity:0.7 }}>
+                        <User size={36} style={{ margin:'0 auto 8px' }} />
+                        <p style={{ fontSize:13 }}>Waiting for {user?.role === 'doctor' ? 'patient' : 'doctor'} to join...</p>
+                      </div>
                     )}
                   </div>
-                  <form onSubmit={handleSendMessage} className="flex gap-2">
-                    <Input
-                      value={newMessage}
-                      onChange={(e) => setNewMessage(e.target.value)}
-                      placeholder="Type a message..."
-                      className="rounded-full text-sm"
-                      data-testid="message-input"
-                    />
-                    <Button type="submit" size="sm" className="rounded-full px-3" disabled={!newMessage.trim()} data-testid="send-button">
-                      <Send size={16} />
-                    </Button>
-                  </form>
-                </CardContent>
-              </Card>
+                )}
+                {remoteUser && (
+                  <div style={{ position:'absolute', bottom:10, left:10, background:'rgba(0,0,0,0.55)', color:'#fff', padding:'3px 9px', borderRadius:999, fontSize:11, fontFamily:mono }}>
+                    {remoteUser.role === 'doctor' ? 'Doctor' : 'Patient'}
+                  </div>
+                )}
+                {/* Local video — PiP inside remote video box */}
+                <div style={{ position:'absolute', top:10, right:10, width:90, height:68, borderRadius:8, overflow:'hidden', border:'2px solid #475569', background:'#0f172a', zIndex:10 }} data-testid="local-video-area">
+                  <video ref={localVideoRef} autoPlay playsInline muted style={{ width:'100%', height:'100%', objectFit:'cover', transform:'scaleX(-1)' }} data-testid="local-video" />
+                  {cameraError && (
+                    <div style={{ position:'absolute', inset:0, display:'flex', alignItems:'center', justifyContent:'center', background:'#0f172a', color:'#94a3b8' }}>
+                      <User size={16} />
+                    </div>
+                  )}
+                  <div style={{ position:'absolute', bottom:3, left:5, background:'rgba(0,0,0,0.55)', color:'#fff', padding:'1px 6px', borderRadius:999, fontSize:9, fontFamily:mono }}>
+                    You
+                  </div>
+                </div>
+              </div>
             </div>
+          )
+        ) : (
+          // Desktop — video left, chat right
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 340px', gap:'1rem', height:'calc(100vh - 90px)' }}>
+            {/* Video */}
+            <div>
+              <div style={{ background:'#1e293b', borderRadius:16, overflow:'hidden', aspectRatio:'16/9', width:'100%', position:'relative', marginBottom:'0.75rem' }} data-testid="remote-video-area">
+                {remoteUser && connectionStatus === 'connected' ? (
+                  <video ref={remoteVideoRef} autoPlay playsInline style={{ width:'100%', height:'100%', objectFit:'cover' }} data-testid="remote-video" />
+                ) : (
+                  <div style={{ width:'100%', height:'100%', display:'flex', alignItems:'center', justifyContent:'center', color:'#fff', textAlign:'center', padding:'2rem' }}>
+                    {connectionStatus === 'error' ? (
+                      <div>
+                        <PhoneOff size={56} color="#ef4444" style={{ margin:'0 auto 12px' }} />
+                        <p style={{ color:'#fca5a5', fontSize:16, marginBottom:8 }}>Connection Error</p>
+                        <p style={{ color:'#94a3b8', fontSize:13, marginBottom:16 }}>Could not establish secure WebRTC layer.</p>
+                        <button onClick={() => window.location.reload()} style={{ padding:'8px 20px', background:'#334155', border:'none', borderRadius:999, color:'#fff', fontSize:13, cursor:'pointer' }}>Reload Consultation</button>
+                      </div>
+                    ) : connectionStatus === 'reconnecting' ? (
+                      <div>
+                        <div style={{ width:48, height:48, border:'3px solid #ea580c', borderTopColor:'transparent', borderRadius:'50%', margin:'0 auto 12px', animation:'spin 1s linear infinite' }} />
+                        <p style={{ color:'#fdba74', fontSize:15 }}>Reconnecting...</p>
+                      </div>
+                    ) : (
+                      <div style={{ opacity:0.6 }}>
+                        <User size={56} style={{ margin:'0 auto 12px' }} />
+                        <p style={{ fontSize:15 }}>Waiting for {user?.role === 'doctor' ? 'patient' : 'doctor'} to join...</p>
+                      </div>
+                    )}
+                  </div>
+                )}
+                {remoteUser && (
+                  <div style={{ position:'absolute', bottom:16, left:16, background:'rgba(0,0,0,0.5)', color:'#fff', padding:'4px 12px', borderRadius:999, fontSize:13, fontFamily:mono }}>
+                    {remoteUser.role === 'doctor' ? 'Doctor' : 'Patient'}
+                  </div>
+                )}
+                {/* Local PiP */}
+                <div style={{ position:'absolute', bottom:16, right:16, width:200, height:130, borderRadius:12, overflow:'hidden', border:'2px solid #475569', background:'#0f172a' }} data-testid="local-video-area">
+                  <video ref={localVideoRef} autoPlay playsInline muted style={{ width:'100%', height:'100%', objectFit:'cover', transform:'scaleX(-1)' }} data-testid="local-video" />
+                  {cameraError && (
+                    <div style={{ position:'absolute', inset:0, display:'flex', alignItems:'center', justifyContent:'center', background:'#0f172a', flexDirection:'column', color:'#94a3b8' }}>
+                      <User size={28} />
+                      <p style={{ fontSize:11, marginTop:4, fontFamily:mono }}>No camera</p>
+                    </div>
+                  )}
+                  <div style={{ position:'absolute', bottom:6, left:8, background:'rgba(0,0,0,0.5)', color:'#fff', padding:'2px 8px', borderRadius:999, fontSize:11, fontFamily:mono }}>
+                    You ({user?.role === 'doctor' ? 'Doctor' : 'Patient'})
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Chat */}
+            <ChatPanel />
           </div>
         )}
       </div>
+
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </div>
   );
 }
