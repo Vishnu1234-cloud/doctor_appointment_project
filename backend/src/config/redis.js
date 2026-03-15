@@ -7,8 +7,11 @@ let redisClient = null;
 const connectRedis = async () => {
   try {
     if (config.redis.url) {
-      redisClient = new Redis(config.redis.url, {
+      // URL se db number hatao aur force db=0 karo
+      const cleanUrl = config.redis.url.replace(/\/\d+$/, '');
+      redisClient = new Redis(cleanUrl, {
         db: 0,
+        tls: {},
         maxRetriesPerRequest: 1,
         retryStrategy: (times) => {
           if (times > 3) return null;
@@ -19,7 +22,7 @@ const connectRedis = async () => {
       redisClient = new Redis({
         host: config.redis.host,
         port: config.redis.port,
-        username: config.redis.username,
+        username: config.redis.username || 'default',
         password: config.redis.password,
         tls: config.nodeEnv === 'production' ? {} : undefined,
         db: 0,
@@ -34,15 +37,12 @@ const connectRedis = async () => {
     redisClient.on('connect', () => {
       logger.info('Redis connected');
     });
-
     redisClient.on('ready', () => {
       logger.info('Redis ready');
     });
-
     redisClient.on('error', (err) => {
       logger.error({ err: err.message }, 'Redis connection error');
     });
-
     redisClient.on('close', () => {
       logger.warn('Redis connection closed');
     });
