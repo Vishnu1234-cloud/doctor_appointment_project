@@ -47,8 +47,11 @@ server.on('upgrade', (request, socket, head) => {
 
 const createRedisSubClient = () => {
   if (config.redis.url) {
-    return new Redis(config.redis.url, {
+    // URL se db number hatao aur force db=0 karo
+    const cleanUrl = config.redis.url.replace(/\/\d+$/, '');
+    return new Redis(cleanUrl, {
       db: 0,
+      tls: {},
       maxRetriesPerRequest: 1,
       retryStrategy: (times) => {
         if (times > 3) return null;
@@ -60,7 +63,7 @@ const createRedisSubClient = () => {
   return new Redis({
     host: config.redis.host,
     port: config.redis.port,
-    username: config.redis.username,
+    username: config.redis.username || 'default',
     password: config.redis.password,
     tls: config.nodeEnv === 'production' ? {} : undefined,
     db: 0,
@@ -144,4 +147,3 @@ process.on('unhandledRejection', (reason, promise) => {
 });
 
 startServer();
-
