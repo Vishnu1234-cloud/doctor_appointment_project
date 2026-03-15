@@ -8,17 +8,20 @@ import logger from '../utils/logger.js';
 class ReminderWorker {
   constructor() {
     this.worker = null;
-    this.initWorker();
+    // Constructor mein directly initWorker nahi karte
+    // Server.js se startWorker() call hoga Redis ready hone ke baad
   }
 
-  initWorker() {
+  startWorker() {
     const redisClient = getRedisClient();
-
     if (!redisClient) {
       logger.warn('[REMINDER WORKER] Redis not available. Worker not started.');
       return;
     }
-
+    if (this.worker) {
+      logger.info('[REMINDER WORKER] Worker already running.');
+      return;
+    }
     try {
       this.worker = new Worker(
         'appointment-reminders',
@@ -26,7 +29,13 @@ class ReminderWorker {
           await this.processReminder(job);
         },
         {
-          connection: redisClient,
+          connection: {
+            host: redisClient.options?.host,
+            port: redisClient.options?.port,
+            password: redisClient.options?.password,
+            tls: redisClient.options?.tls,
+            db: 0,
+          },
           concurrency: 5,
         }
       );
@@ -39,7 +48,7 @@ class ReminderWorker {
         logger.error(`[REMINDER WORKER] Job ${job?.id} failed:`, err.message);
       });
 
-      logger.info('[REMINDER WORKER] Worker started');
+      logger.info('[REMINDER WORKER] Worker started successfully ✅');
     } catch (error) {
       logger.error('[REMINDER WORKER] Failed to start worker:', error.message);
     }
@@ -47,35 +56,28 @@ class ReminderWorker {
 
   async processReminder(job) {
     const { appointmentId, type } = job.data;
-
     logger.info(`[REMINDER] Processing ${type} reminder for ${appointmentId}`);
-
     try {
-      // Appointment lo
       const appointment = await Appointment.findOne({ id: appointmentId });
       if (!appointment) {
         logger.warn(`[REMINDER] Appointment ${appointmentId} not found`);
         return;
       }
 
-      // Cancel/complete hoga toh skip karo
       if (['cancelled', 'completed'].includes(appointment.status)) {
         logger.info(`[REMINDER] Skipping — appointment is ${appointment.status}`);
         return;
       }
 
-      // Patient lo
       const patient = await User.findOne({ id: appointment.patient_id });
       if (!patient) {
         logger.warn(`[REMINDER] Patient not found for ${appointmentId}`);
         return;
       }
 
-      // Doctor lo
       const doctor = await User.findOne({ role: 'doctor' });
 
-      // ✅ Sirf 10-minute reminder pe email bhejo
-      if (type === '10-minute' && patient.email) {
+      if ((type === '10-minute' || type === '1-hour') && patient.email) {
         await sendAppointmentReminderEmail({
           patientEmail: patient.email,
           patientName: patient.full_name || 'Patient',
@@ -85,21 +87,7 @@ class ReminderWorker {
           consultationType: appointment.consultation_type || 'video',
           appointmentId: appointment.id,
         });
-        logger.info(`[REMINDER] 10-min email sent to ${patient.email}`);
-      }
-
-      // ✅ 1-hour reminder pe bhi email bhejo
-      if (type === '1-hour' && patient.email) {
-        await sendAppointmentReminderEmail({
-          patientEmail: patient.email,
-          patientName: patient.full_name || 'Patient',
-          doctorName: doctor?.full_name || 'Doctor',
-          date: appointment.date,
-          time: appointment.time,
-          consultationType: appointment.consultation_type || 'video',
-          appointmentId: appointment.id,
-        });
-        logger.info(`[REMINDER] 1-hour email sent to ${patient.email}`);
+        logger.info(`[REMINDER] ${type} email sent to ${patient.email}`);
       }
 
       logger.info(`[REMINDER] ${type} reminder done for ${appointmentId}`);

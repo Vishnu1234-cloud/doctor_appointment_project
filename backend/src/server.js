@@ -96,6 +96,9 @@ const startServer = async () => {
 
       io.adapter(createAdapter(pubClient, subClient));
       logger.info('Socket.IO bound to Redis Adapter');
+
+      // Redis ready hone ke baad reminder worker start karo
+      reminderWorker.startWorker();
     } else {
       logger.warn('Redis not available. Running without Redis adapter.');
     }
