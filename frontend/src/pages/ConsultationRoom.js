@@ -132,6 +132,11 @@ export default function ConsultationRoom() {
       const { signature } = sigRes.data;
       toast.dismiss();
       const ZoomMtg = zoomClientRef.current;
+
+      // Zoom container activate karo
+      const zoomRoot = document.getElementById('zmmtg-root');
+      if (zoomRoot) zoomRoot.classList.add('zoom-active');
+
       ZoomMtg.init({
         leaveUrl: window.location.href,
         patchJsMedia: true,
@@ -148,7 +153,12 @@ export default function ConsultationRoom() {
             error: (err) => { console.error('Join error:', err); toast.error('Failed to join meeting'); }
           });
         },
-        error: (err) => { console.error('Init error:', err); toast.error('Failed to initialize Zoom'); }
+        error: (err) => {
+          // Error pe container hide karo
+          if (zoomRoot) zoomRoot.classList.remove('zoom-active');
+          console.error('Init error:', err);
+          toast.error('Failed to initialize Zoom');
+        }
       });
     } catch (err) {
       toast.dismiss();
@@ -160,6 +170,10 @@ export default function ConsultationRoom() {
     if (zoomClientRef.current && inMeeting) {
       try { zoomClientRef.current.leaveMeeting({}); } catch {}
     }
+    // Zoom container hide karo
+    const zoomRoot = document.getElementById('zmmtg-root');
+    if (zoomRoot) zoomRoot.classList.remove('zoom-active');
+
     if (websocketRef.current?.readyState === WebSocket.OPEN) {
       websocketRef.current.send(JSON.stringify({ type: 'leave' }));
       websocketRef.current.close();
