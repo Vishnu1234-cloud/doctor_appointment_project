@@ -18,31 +18,59 @@ class AppointmentService {
       payment_status: 'pending',
     });
 
-    // Get patient details
+    // ✅ Patient aur Doctor dono fetch karo
     const patient = await User.findOne({ id: appointmentData.patient_id });
+    const doctor = await User.findOne({ id: appointmentData.doctor_id });
 
     if (patient) {
-      // Send booking confirmation
       const notificationData = {
         patient_name: patient.full_name,
+        doctor_name: doctor?.full_name || 'Doctor', // ✅ doctor_name add
         date: appointment.date,
         time: appointment.time,
         consultation_type: appointment.consultation_type,
       };
 
-      // Try WhatsApp first, fallback to email
+      // WhatsApp notification patient ko
       if (patient.phone) {
-        await whatsappService.sendBookingConfirmation(patient.phone, notificationData);
-      } else if (patient.email) {
-        await emailService.sendAppointmentEmail(
-          patient.email,
-          patient.full_name,
+        await whatsappService.sendBookingConfirmation(
+          patient.phone, 
           notificationData
         );
       }
 
-      // Schedule reminders (1 hour and 10 minutes before)
-      await reminderService.scheduleReminders(appointmentId, appointment.date, appointment.time);
+      // ✅ Patient ko email — hamesha bhejo (else if nahi, seedha if)
+      if (patient.email) {
+        await emailService.sendAppointmentConfirmationEmail({
+          patientEmail: patient.email,
+          patientName: patient.full_name,
+          doctorName: doctor?.full_name || 'Doctor',
+          date: appointment.date,
+          time: appointment.time,
+          consultationType: appointment.consultation_type,
+          appointmentId: appointmentId,
+        });
+      }
+
+      // ✅ Doctor ko bhi email — pehle nahi tha, ab add kiya
+      if (doctor?.email) {
+        await emailService.sendAppointmentConfirmationEmail({
+          patientEmail: doctor.email,
+          patientName: doctor.full_name,
+          doctorName: doctor.full_name,
+          date: appointment.date,
+          time: appointment.time,
+          consultationType: appointment.consultation_type,
+          appointmentId: appointmentId,
+        });
+      }
+
+      // Reminders schedule karo
+      await reminderService.scheduleReminders(
+        appointmentId,
+        appointment.date,
+        appointment.time
+      );
     }
 
     logger.info(`Appointment created: ${appointmentId}`);
@@ -111,7 +139,6 @@ class AppointmentService {
       { new: true }
     );
 
-    // Cancel old reminders and schedule new ones
     await reminderService.cancelReminders(appointmentId);
     await reminderService.scheduleReminders(appointmentId, newDate, newTime);
 
@@ -133,7 +160,6 @@ class AppointmentService {
       { new: true }
     );
 
-    // Cancel scheduled reminders
     await reminderService.cancelReminders(appointmentId);
 
     logger.info(`Appointment ${appointmentId} cancelled`);
@@ -159,7 +185,6 @@ class AppointmentService {
 
   // Get available time slots for a date
   async getAvailableSlots(date) {
-    // Get booked appointments for the date
     const bookedAppointments = await Appointment.find({
       date,
       status: { $nin: ['cancelled'] },
@@ -167,11 +192,9 @@ class AppointmentService {
 
     const bookedTimes = bookedAppointments.map((apt) => apt.time);
 
-    // Generate time slots (6 PM to 8 PM, 15-minute intervals)
     const slots = [];
     for (let hour = 18; hour <= 20; hour++) {
       for (let minute of [0, 15, 30, 45]) {
-        // 20:00 ke baad koi slot nahi
         if (hour === 20 && minute > 0) break;
         const time = `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
         slots.push({
