@@ -1,46 +1,93 @@
-import { Resend } from 'resend';
+import nodemailer from 'nodemailer';
 import config from '../config/env.js';
 import logger from '../utils/logger.js';
 
-const resend = new Resend(config.email.apiKey);
+// ✅ Gmail transporter
+const transporter = nodemailer.createTransport({
+  service: 'gmail',
+  auth: {
+    user: process.env.GMAIL_USER,
+    pass: process.env.GMAIL_PASS,
+  },
+});
 
-// ── Appointment Confirmation Email ──────────────────
-export const sendAppointmentConfirmationEmail = async ({ 
-  patientEmail, 
-  patientName, 
-  doctorName, 
-  date, 
-  time, 
-  consultationType,
-  appointmentId 
-}) => {
-  if (!config.email.enabled) {
-    logger.info('Email disabled — skipping appointment confirmation');
-    return;
-  }
-
+// ── OTP Email ──────────────────────────────────────────
+export const sendOtpEmail = async ({ email, otp, userName }) => {
+  if (!config.email.enabled) return false;
   try {
-    await resend.emails.send({
-      from: config.email.from,
+    await transporter.sendMail({
+      from: process.env.EMAIL_FROM,
+      to: email,
+      subject: `${otp} — Aapka HealthLine OTP`,
+      html: `
+        <!DOCTYPE html>
+        <html>
+        <body style="margin:0;padding:0;background:#f0f9ff;font-family:'Segoe UI',Arial,sans-serif;">
+          <div style="max-width:480px;margin:40px auto;background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,0.08);">
+            <div style="background:linear-gradient(135deg,#0f766e,#14b8a6);padding:28px 40px;text-align:center;">
+              <h1 style="margin:0;color:#ffffff;font-size:24px;">🏥 HealthLine</h1>
+              <p style="margin:6px 0 0;color:#ccfbf1;font-size:13px;">Telemedicine Platform</p>
+            </div>
+            <div style="padding:40px;text-align:center;">
+              <p style="color:#374151;font-size:16px;margin:0 0 24px;">
+                Namaste <strong>${userName || 'User'}</strong>,<br>
+                Aapka OTP yeh hai:
+              </p>
+              <div style="background:#f0fdf4;border:2px dashed #86efac;border-radius:16px;padding:24px;margin-bottom:24px;">
+                <div style="font-size:48px;font-weight:800;letter-spacing:12px;color:#0f766e;font-family:monospace;">
+                  ${otp}
+                </div>
+              </div>
+              <p style="color:#6b7280;font-size:14px;margin:0 0 8px;">
+                ⏱️ Ye OTP <strong>5 minutes</strong> mein expire ho jayega
+              </p>
+              <p style="color:#ef4444;font-size:13px;margin:0;">
+                ⚠️ Kisi ke saath share mat karein
+              </p>
+            </div>
+            <div style="background:#f8fafc;padding:20px 40px;text-align:center;border-top:1px solid #e5e7eb;">
+              <p style="margin:0;color:#9ca3af;font-size:12px;">© 2026 HealthLine Telemedicine</p>
+            </div>
+          </div>
+        </body>
+        </html>
+      `,
+    });
+    logger.info(`OTP email sent to ${email}`);
+    return true;
+  } catch (error) {
+    logger.error('OTP email failed:', error);
+    return false;
+  }
+};
+
+// ── Appointment Confirmation Email ─────────────────────
+export const sendAppointmentConfirmationEmail = async ({
+  patientEmail,
+  patientName,
+  doctorName,
+  date,
+  time,
+  consultationType,
+  appointmentId,
+}) => {
+  if (!config.email.enabled) return;
+  try {
+    await transporter.sendMail({
+      from: process.env.EMAIL_FROM,
       to: patientEmail,
       subject: '✅ Appointment Confirmed — HealthLine',
       html: `
         <!DOCTYPE html>
         <html>
-        <head>
-          <meta charset="utf-8">
-          <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        </head>
         <body style="margin:0;padding:0;background:#f0fdf4;font-family:'Segoe UI',Arial,sans-serif;">
           <div style="max-width:600px;margin:40px auto;background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,0.08);">
-            
-            <!-- Header -->
+
             <div style="background:linear-gradient(135deg,#0f766e,#14b8a6);padding:32px 40px;text-align:center;">
               <h1 style="margin:0;color:#ffffff;font-size:28px;font-weight:700;">🏥 HealthLine</h1>
               <p style="margin:8px 0 0;color:#ccfbf1;font-size:14px;">Telemedicine Platform</p>
             </div>
 
-            <!-- Body -->
             <div style="padding:40px;">
               <div style="background:#f0fdf4;border:2px solid #86efac;border-radius:12px;padding:20px;text-align:center;margin-bottom:28px;">
                 <div style="font-size:48px;margin-bottom:8px;">✅</div>
@@ -52,7 +99,6 @@ export const sendAppointmentConfirmationEmail = async ({
                 Aapka appointment successfully book ho gaya hai. Neeche details hain:
               </p>
 
-              <!-- Appointment Details -->
               <div style="background:#f8fafc;border-radius:12px;padding:24px;margin-bottom:28px;">
                 <table style="width:100%;border-collapse:collapse;">
                   <tr>
@@ -69,7 +115,9 @@ export const sendAppointmentConfirmationEmail = async ({
                   </tr>
                   <tr style="border-top:1px solid #e5e7eb;">
                     <td style="padding:10px 0;color:#6b7280;font-size:14px;">💻 Type</td>
-                    <td style="padding:10px 0;color:#111827;font-size:14px;font-weight:600;">${consultationType === 'video' ? '🎥 Video Call' : '💬 Chat'}</td>
+                    <td style="padding:10px 0;color:#111827;font-size:14px;font-weight:600;">
+                      ${consultationType === 'video' ? '🎥 Video Call' : '💬 Chat'}
+                    </td>
                   </tr>
                   <tr style="border-top:1px solid #e5e7eb;">
                     <td style="padding:10px 0;color:#6b7280;font-size:14px;">🆔 ID</td>
@@ -78,15 +126,13 @@ export const sendAppointmentConfirmationEmail = async ({
                 </table>
               </div>
 
-              <!-- CTA Button -->
               <div style="text-align:center;margin-bottom:28px;">
-                <a href="https://doctorappointmentprojectv2.vercel.app/patient/dashboard" 
+                <a href="https://doctor-appointment-project-one.vercel.app/patient/dashboard"
                    style="background:linear-gradient(135deg,#0f766e,#14b8a6);color:#ffffff;text-decoration:none;padding:14px 32px;border-radius:50px;font-size:16px;font-weight:600;display:inline-block;">
                   Dashboard Dekhein →
                 </a>
               </div>
 
-              <!-- Reminder Note -->
               <div style="background:#fffbeb;border:1px solid #fcd34d;border-radius:10px;padding:16px;">
                 <p style="margin:0;color:#92400e;font-size:14px;">
                   ⏰ <strong>Reminder:</strong> Appointment se 10 minute pehle aapko ek reminder email aayega.
@@ -94,14 +140,9 @@ export const sendAppointmentConfirmationEmail = async ({
               </div>
             </div>
 
-            <!-- Footer -->
             <div style="background:#f8fafc;padding:24px 40px;text-align:center;border-top:1px solid #e5e7eb;">
-              <p style="margin:0;color:#9ca3af;font-size:12px;">
-                © 2026 HealthLine Telemedicine · 
-                <a href="https://doctorappointmentprojectv2.vercel.app" style="color:#14b8a6;text-decoration:none;">Visit Website</a>
-              </p>
+              <p style="margin:0;color:#9ca3af;font-size:12px;">© 2026 HealthLine Telemedicine</p>
             </div>
-
           </div>
         </body>
         </html>
@@ -109,11 +150,11 @@ export const sendAppointmentConfirmationEmail = async ({
     });
     logger.info(`Confirmation email sent to ${patientEmail}`);
   } catch (error) {
-    logger.error('Email send failed:', error);
+    logger.error('Appointment email failed:', error);
   }
 };
 
-// ── Appointment Reminder Email (10 min pehle) ───────
+// ── Appointment Reminder Email ──────────────────────────
 export const sendAppointmentReminderEmail = async ({
   patientEmail,
   patientName,
@@ -124,10 +165,9 @@ export const sendAppointmentReminderEmail = async ({
   appointmentId,
 }) => {
   if (!config.email.enabled) return;
-
   try {
-    await resend.emails.send({
-      from: config.email.from,
+    await transporter.sendMail({
+      from: process.env.EMAIL_FROM,
       to: patientEmail,
       subject: '⏰ Appointment Reminder — 10 Minutes Mein! — HealthLine',
       html: `
@@ -135,7 +175,7 @@ export const sendAppointmentReminderEmail = async ({
         <html>
         <body style="margin:0;padding:0;background:#fffbeb;font-family:'Segoe UI',Arial,sans-serif;">
           <div style="max-width:600px;margin:40px auto;background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,0.08);">
-            
+
             <div style="background:linear-gradient(135deg,#d97706,#f59e0b);padding:32px 40px;text-align:center;">
               <h1 style="margin:0;color:#ffffff;font-size:28px;">🏥 HealthLine</h1>
               <p style="margin:8px 0 0;color:#fef3c7;font-size:14px;">Appointment Reminder</p>
@@ -165,13 +205,15 @@ export const sendAppointmentReminderEmail = async ({
                   </tr>
                   <tr style="border-top:1px solid #e5e7eb;">
                     <td style="padding:8px 0;color:#6b7280;font-size:14px;">💻 Type</td>
-                    <td style="padding:8px 0;color:#111827;font-weight:600;font-size:14px;">${consultationType === 'video' ? '🎥 Video Call' : '💬 Chat'}</td>
+                    <td style="padding:8px 0;color:#111827;font-weight:600;font-size:14px;">
+                      ${consultationType === 'video' ? '🎥 Video Call' : '💬 Chat'}
+                    </td>
                   </tr>
                 </table>
               </div>
 
               <div style="text-align:center;">
-                <a href="https://doctorappointmentprojectv2.vercel.app/consultation/${appointmentId}"
+                <a href="https://doctor-appointment-project-one.vercel.app/consultation/${appointmentId}"
                    style="background:linear-gradient(135deg,#d97706,#f59e0b);color:#ffffff;text-decoration:none;padding:14px 32px;border-radius:50px;font-size:16px;font-weight:600;display:inline-block;">
                   Consultation Join Karein →
                 </a>
@@ -189,59 +231,6 @@ export const sendAppointmentReminderEmail = async ({
     logger.info(`Reminder email sent to ${patientEmail}`);
   } catch (error) {
     logger.error('Reminder email failed:', error);
-  }
-};
-
-// ── OTP Email ───────────────────────────────────────
-export const sendOtpEmail = async ({ email, otp, userName }) => {
-  if (!config.email.enabled) return;
-
-  try {
-    await resend.emails.send({
-      from: config.email.from,
-      to: email,
-      subject: `${otp} — Aapka HealthLine OTP`,
-      html: `
-        <!DOCTYPE html>
-        <html>
-        <body style="margin:0;padding:0;background:#f0f9ff;font-family:'Segoe UI',Arial,sans-serif;">
-          <div style="max-width:480px;margin:40px auto;background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,0.08);">
-            
-            <div style="background:linear-gradient(135deg,#0f766e,#14b8a6);padding:28px 40px;text-align:center;">
-              <h1 style="margin:0;color:#ffffff;font-size:24px;">🏥 HealthLine</h1>
-            </div>
-
-            <div style="padding:40px;text-align:center;">
-              <p style="color:#374151;font-size:16px;margin:0 0 24px;">
-                Namaste <strong>${userName || 'User'}</strong>,<br>
-                Aapka OTP yeh hai:
-              </p>
-
-              <div style="background:#f0fdf4;border:2px dashed #86efac;border-radius:16px;padding:24px;margin-bottom:24px;">
-                <div style="font-size:48px;font-weight:800;letter-spacing:12px;color:#0f766e;font-family:monospace;">
-                  ${otp}
-                </div>
-              </div>
-
-              <p style="color:#6b7280;font-size:14px;margin:0 0 8px;">
-                ⏱️ Ye OTP <strong>5 minutes</strong> mein expire ho jayega
-              </p>
-              <p style="color:#ef4444;font-size:13px;margin:0;">
-                ⚠️ Kisi ke saath share mat karein
-              </p>
-            </div>
-
-            <div style="background:#f8fafc;padding:20px 40px;text-align:center;border-top:1px solid #e5e7eb;">
-              <p style="margin:0;color:#9ca3af;font-size:12px;">© 2026 HealthLine Telemedicine</p>
-            </div>
-          </div>
-        </body>
-        </html>
-      `,
-    });
-    logger.info(`OTP email sent to ${email}`);
-  } catch (error) {
-    logger.error('OTP email failed:', error);
   }
 };
 
