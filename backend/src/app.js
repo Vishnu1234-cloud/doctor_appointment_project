@@ -24,6 +24,7 @@ import adminRoutes from './routes/admin.routes.js';
 import passport from './config/passport.js';
 import reviewRoutes from './routes/review.route.js';
 import zoomRoutes from './routes/zoom.routes.js';
+import twilioRoutes from './routes/twilio.routes.js';
 
 const app = express();
 // Trust proxy (for rate limiting behind reverse proxy)
@@ -83,6 +84,7 @@ apiRouter.use('/medical-records', medicalRecordRoutes);
 apiRouter.use('/admin', adminRoutes);
 apiRouter.use('/reviews', reviewRoutes);
 apiRouter.use('/zoom', zoomRoutes);
+apiRouter.use('/twilio', twilioRoutes);
 
 // Root route
 apiRouter.get('/', (req, res) => {
