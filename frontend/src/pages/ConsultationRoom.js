@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, PhoneOff, Video, MessageCircle, X } from 'lucide-react';
+import { ArrowLeft, PhoneOff, Video, VideoOff, Mic, MicOff, MessageCircle, X, Monitor } from 'lucide-react';
 import axios from 'axios';
 import { useAuth } from '@/context/AuthContext';
 import { toast } from 'sonner';
@@ -38,9 +38,16 @@ export default function ConsultationRoom() {
   const [newMessage, setNewMessage] = useState('');
   const [isChatOnly, setIsChatOnly] = useState(false);
 
+  // Controls state
+  const [isMicOn, setIsMicOn] = useState(true);
+  const [isCameraOn, setIsCameraOn] = useState(true);
+  const [isScreenSharing, setIsScreenSharing] = useState(false);
+  const [participants, setParticipants] = useState([]);
+
   const roomRef = useRef(null);
   const localVideoRef = useRef(null);
   const remoteVideoRef = useRef(null);
+  const screenTrackRef = useRef(null);
   const websocketRef = useRef(null);
   const messagesEndRef = useRef(null);
 
@@ -124,6 +131,7 @@ export default function ConsultationRoom() {
       setInMeeting(true);
       toast.success('Video call started!');
 
+      // Local video attach
       room.localParticipant.videoTracks.forEach(publication => {
         if (localVideoRef.current) {
           localVideoRef.current.innerHTML = '';
@@ -131,16 +139,24 @@ export default function ConsultationRoom() {
         }
       });
 
-      room.participants.forEach(participant => handleRemoteParticipant(participant));
-
-      room.on('participantConnected', participant => {
-        toast.success('Other participant joined!');
+      // Existing remote participants
+      room.participants.forEach(participant => {
         handleRemoteParticipant(participant);
+        setParticipants(prev => [...prev, participant.identity]);
       });
 
-      room.on('participantDisconnected', () => {
+      // New participant joined
+      room.on('participantConnected', participant => {
+        toast.success(`${participant.identity} joined!`);
+        handleRemoteParticipant(participant);
+        setParticipants(prev => [...prev, participant.identity]);
+      });
+
+      // Participant left
+      room.on('participantDisconnected', participant => {
         if (remoteVideoRef.current) remoteVideoRef.current.innerHTML = '';
-        toast.error('Other participant left');
+        setParticipants(prev => prev.filter(p => p !== participant.identity));
+        toast.error(`${participant.identity} left`);
       });
 
     } catch (err) {
@@ -154,18 +170,81 @@ export default function ConsultationRoom() {
   const handleRemoteParticipant = (participant) => {
     participant.tracks.forEach(publication => {
       if (publication.isSubscribed && publication.track) {
-        if (remoteVideoRef.current) {
-          remoteVideoRef.current.innerHTML = '';
-          remoteVideoRef.current.appendChild(publication.track.attach());
-        }
+        attachRemoteTrack(publication.track);
       }
     });
-    participant.on('trackSubscribed', track => {
-      if (remoteVideoRef.current) {
-        remoteVideoRef.current.innerHTML = '';
-        remoteVideoRef.current.appendChild(track.attach());
+    participant.on('trackSubscribed', track => attachRemoteTrack(track));
+    participant.on('trackUnsubscribed', track => track.detach());
+  };
+
+  const attachRemoteTrack = (track) => {
+    if (track.kind === 'video' && remoteVideoRef.current) {
+      remoteVideoRef.current.innerHTML = '';
+      remoteVideoRef.current.appendChild(track.attach());
+    }
+    if (track.kind === 'audio') {
+      document.body.appendChild(track.attach());
+    }
+  };
+
+  // Mic toggle
+  const toggleMic = () => {
+    if (!roomRef.current) return;
+    roomRef.current.localParticipant.audioTracks.forEach(publication => {
+      if (isMicOn) {
+        publication.track.disable();
+        toast('Mic muted');
+      } else {
+        publication.track.enable();
+        toast('Mic unmuted');
       }
     });
+    setIsMicOn(!isMicOn);
+  };
+
+  // Camera toggle
+  const toggleCamera = () => {
+    if (!roomRef.current) return;
+    roomRef.current.localParticipant.videoTracks.forEach(publication => {
+      if (isCameraOn) {
+        publication.track.disable();
+        toast('Camera off');
+      } else {
+        publication.track.enable();
+        toast('Camera on');
+      }
+    });
+    setIsCameraOn(!isCameraOn);
+  };
+
+  // Screen share
+  const toggleScreenShare = async () => {
+    if (!roomRef.current) return;
+    if (!isScreenSharing) {
+      try {
+        const stream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+        const screenTrack = stream.getTracks()[0];
+        await roomRef.current.localParticipant.publishTrack(screenTrack);
+        screenTrackRef.current = screenTrack;
+        screenTrack.onended = () => stopScreenShare();
+        setIsScreenSharing(true);
+        toast.success('Screen sharing started');
+      } catch (err) {
+        toast.error('Screen share failed');
+      }
+    } else {
+      stopScreenShare();
+    }
+  };
+
+  const stopScreenShare = () => {
+    if (screenTrackRef.current) {
+      roomRef.current?.localParticipant.unpublishTrack(screenTrackRef.current);
+      screenTrackRef.current.stop();
+      screenTrackRef.current = null;
+    }
+    setIsScreenSharing(false);
+    toast('Screen sharing stopped');
   };
 
   const endCall = () => {
@@ -173,6 +252,9 @@ export default function ConsultationRoom() {
       roomRef.current.localParticipant.videoTracks.forEach(publication => {
         publication.track.stop();
         publication.track.detach();
+      });
+      roomRef.current.localParticipant.audioTracks.forEach(publication => {
+        publication.track.stop();
       });
       roomRef.current.disconnect();
       roomRef.current = null;
@@ -200,6 +282,29 @@ export default function ConsultationRoom() {
       </div>
     );
   }
+
+  const ControlBar = () => (
+    <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:12, padding:'12px 0', background:'#0f172a' }}>
+      {/* Mic */}
+      <button onClick={toggleMic} style={{ width:44, height:44, borderRadius:'50%', border:'none', background:isMicOn?'#334155':'#dc2626', display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer' }}>
+        {isMicOn ? <Mic size={18} color="#fff"/> : <MicOff size={18} color="#fff"/>}
+      </button>
+      {/* Camera */}
+      <button onClick={toggleCamera} style={{ width:44, height:44, borderRadius:'50%', border:'none', background:isCameraOn?'#334155':'#dc2626', display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer' }}>
+        {isCameraOn ? <Video size={18} color="#fff"/> : <VideoOff size={18} color="#fff"/>}
+      </button>
+      {/* Screen Share */}
+      {!isMobile && (
+        <button onClick={toggleScreenShare} style={{ width:44, height:44, borderRadius:'50%', border:'none', background:isScreenSharing?'#4f46e5':'#334155', display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer' }}>
+          <Monitor size={18} color="#fff"/>
+        </button>
+      )}
+      {/* End Call */}
+      <button onClick={endCall} style={{ width:44, height:44, borderRadius:'50%', border:'none', background:'#dc2626', display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer' }}>
+        <PhoneOff size={18} color="#fff"/>
+      </button>
+    </div>
+  );
 
   const ChatPanel = () => (
     <div style={{ display:'flex', flexDirection:'column', height:'100%', background:'#fff', borderRadius:isMobile?0:16, overflow:'hidden' }}>
@@ -240,16 +345,16 @@ export default function ConsultationRoom() {
   );
 
   const VideoArea = () => (
-    <div style={{ background:'#1e293b', borderRadius:isMobile?12:16, overflow:'hidden', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', minHeight:isMobile?280:400, flex:1, position:'relative' }}>
+    <div style={{ background:'#1e293b', borderRadius:isMobile?12:16, overflow:'hidden', display:'flex', flexDirection:'column', minHeight:isMobile?280:400, flex:1, position:'relative' }}>
       {!inMeeting ? (
-        <div style={{ textAlign:'center', color:'#fff', padding:'2rem' }}>
+        <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center' }}>
           {error ? (
-            <div>
+            <div style={{ textAlign:'center', color:'#fff', padding:'2rem' }}>
               <p style={{ color:'#fca5a5', marginBottom:12 }}>{error}</p>
               <button onClick={() => setError(null)} style={{ padding:'8px 20px', background:'#334155', border:'none', borderRadius:999, color:'#fff', cursor:'pointer' }}>Retry</button>
             </div>
           ) : (
-            <div>
+            <div style={{ textAlign:'center', color:'#fff', padding:'2rem' }}>
               <div style={{ width:70, height:70, borderRadius:'50%', background:'#334155', display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 16px' }}>
                 <Video size={30} color="#4f46e5" />
               </div>
@@ -264,11 +369,25 @@ export default function ConsultationRoom() {
           )}
         </div>
       ) : (
-        <div style={{ width:'100%', height:'100%', position:'relative', minHeight:isMobile?280:400 }}>
-          <div ref={remoteVideoRef} style={{ width:'100%', height:'100%', background:'#0f172a', display:'flex', alignItems:'center', justifyContent:'center' }} />
+        <div style={{ flex:1, position:'relative', minHeight:isMobile?280:400 }}>
+          {/* Remote video */}
+          <div ref={remoteVideoRef} style={{ width:'100%', height:'100%', background:'#0f172a', minHeight:isMobile?240:360, display:'flex', alignItems:'center', justifyContent:'center' }}>
+            {participants.length === 0 && (
+              <p style={{ color:'#475569', fontSize:13, fontFamily:mono }}>Waiting for other participant...</p>
+            )}
+          </div>
+          {/* Local video corner */}
           <div ref={localVideoRef} style={{ position:'absolute', bottom:12, right:12, width:isMobile?80:120, height:isMobile?60:90, borderRadius:8, overflow:'hidden', border:'2px solid #4f46e5', background:'#1e293b' }} />
+          {/* Mic/Camera status indicators */}
+          <div style={{ position:'absolute', top:8, left:8, display:'flex', gap:6 }}>
+            {!isMicOn && <span style={{ background:'#dc2626', borderRadius:999, padding:'2px 8px', fontSize:10, color:'#fff', fontFamily:mono }}>Muted</span>}
+            {!isCameraOn && <span style={{ background:'#dc2626', borderRadius:999, padding:'2px 8px', fontSize:10, color:'#fff', fontFamily:mono }}>Cam Off</span>}
+            {isScreenSharing && <span style={{ background:'#4f46e5', borderRadius:999, padding:'2px 8px', fontSize:10, color:'#fff', fontFamily:mono }}>Sharing Screen</span>}
+          </div>
         </div>
       )}
+      {/* Control bar — sirf meeting mein dikhega */}
+      {inMeeting && <ControlBar />}
     </div>
   );
 
@@ -294,9 +413,6 @@ export default function ConsultationRoom() {
                 <MessageCircle size={15} color="#fff" />
               </button>
             )}
-            <button onClick={endCall} style={{ width:32, height:32, borderRadius:'50%', border:'none', background:'#dc2626', display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer' }}>
-              <PhoneOff size={14} color="#fff" />
-            </button>
           </div>
         </div>
       </header>
