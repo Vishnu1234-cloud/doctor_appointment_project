@@ -174,27 +174,35 @@ export default function Login() {
     } finally { setPwLoading(false); }
   };
 
+  // ✅ FIX 1 — otpId camelCase + snake_case dono handle karo
   const handleSendOtp = async () => {
-    if (!identifier.trim()) { toast.error('Please enter your email or mobile number first.'); return; }
+    if (!identifier.trim()) {
+      toast.error('Please enter your email or mobile number first.');
+      return;
+    }
     setOtpLoading(true);
     try {
-      const payload = { email:identifier, delivery_channel:otpChannel };
+      const payload = { email: identifier, delivery_channel: otpChannel };
       if (otpChannel === 'sms') payload.phone = `+91${otpPhone || identifier}`;
+
       const res = await axios.post(`${API}/auth/request-otp`, payload);
+
       setUserId(res.data.user_id);
-      setOtpId(res.data.otp_id);
+      setOtpId(res.data.otpId || res.data.otp_id); // ✅ camelCase + snake_case fix
       setOtpSent(true);
       toast.success(`OTP sent to your ${otpChannel === 'sms' ? 'mobile' : 'email'}!`);
     } catch (err) {
       toast.error(err?.response?.data?.detail || 'Failed to send OTP.');
-    } finally { setOtpLoading(false); }
+    } finally {
+      setOtpLoading(false);
+    }
   };
 
   const handleOtpLogin = async () => {
     if (otp.length !== 6) { toast.error('Enter the 6-digit OTP.'); return; }
     setOtpLoading(true);
     try {
-      const res = await axios.post(`${API}/auth/verify-otp`, { user_id:userId, otp_id:otpId, otp });
+      const res = await axios.post(`${API}/auth/verify-otp`, { user_id: userId, otp_id: otpId, otp });
       localStorage.setItem('token', res.data.token);
       axios.defaults.headers.common['Authorization'] = `Bearer ${res.data.token}`;
       toast.success('Login successful!');
@@ -204,14 +212,21 @@ export default function Login() {
     } finally { setOtpLoading(false); }
   };
 
+  // ✅ FIX 2 — Resend mein bhi otpId camelCase + snake_case fix
   const handleResendOtp = async () => {
     setOtpLoading(true);
     try {
-      const res = await axios.post(`${API}/auth/resend-otp`, { user_id:userId, delivery_channel:otpChannel });
-      setOtpId(res.data.otp_id);
+      const res = await axios.post(`${API}/auth/resend-otp`, {
+        user_id: userId,
+        delivery_channel: otpChannel,
+      });
+      setOtpId(res.data.otpId || res.data.otp_id); // ✅ camelCase + snake_case fix
       toast.success('New OTP sent!');
-    } catch { toast.error('Failed to resend OTP.'); }
-    finally { setOtpLoading(false); }
+    } catch {
+      toast.error('Failed to resend OTP.');
+    } finally {
+      setOtpLoading(false);
+    }
   };
 
   const s = {
@@ -238,7 +253,6 @@ export default function Login() {
         {/* LEFT — Image collage — hidden on mobile */}
         {!isMobile && (
           <div style={{ width:'55%', padding:'32px 40px', background:'#f0f6ff', position:'relative', overflow:'hidden', display:'flex', flexDirection:'column' }}>
-            {/* Logo */}
             <Link to="/" style={{ display:'inline-flex', alignItems:'center', gap:8, textDecoration:'none', marginBottom:32 }}>
               <div style={{ width:34, height:34, borderRadius:8, background:'linear-gradient(135deg,#0d9488,#3b6fd4)', display:'flex', alignItems:'center', justifyContent:'center' }}>
                 <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="white" strokeWidth={2}>
@@ -247,7 +261,6 @@ export default function Login() {
               </div>
               <span style={{ fontSize:20, fontWeight:700, color:'#1e3a5f' }}>HealthLine</span>
             </Link>
-            {/* Row 1 */}
             <div style={{ display:'grid', gridTemplateColumns:'90px 1fr 110px', gap:10, marginBottom:10 }}>
               <div style={{ display:'flex', flexDirection:'column', justifyContent:'flex-end' }}>
                 <div style={{ overflow:'hidden', borderRadius:8, height:90, marginLeft:10 }}>
@@ -264,7 +277,6 @@ export default function Login() {
                 <div style={{ borderRadius:8, background:'linear-gradient(135deg,#3b6fd4,#1e3a5f)', flex:1 }} />
               </div>
             </div>
-            {/* Row 2 */}
             <div style={{ display:'grid', gridTemplateColumns:'70px 130px 1fr 110px', gap:10, height:150 }}>
               <div style={{ borderRadius:8, background:'linear-gradient(135deg,#1e3a5f,#2d4a7a)', alignSelf:'flex-start', height:90, marginTop:30 }} />
               <div style={{ overflow:'hidden', borderRadius:8 }}>
@@ -277,7 +289,6 @@ export default function Login() {
                 <img src={medicalImages[5]} alt="" style={{ width:'100%', height:'100%', objectFit:'cover', display:'block' }} />
               </div>
             </div>
-            {/* Dots */}
             <div style={{ display:'grid', gridTemplateColumns:'repeat(24,1fr)', gap:5, opacity:0.25, marginTop:16 }}>
               {Array.from({ length:96 }).map((_, i) => <div key={i} style={{ width:4, height:4, borderRadius:'50%', background:'#3b6fd4' }} />)}
             </div>
@@ -288,7 +299,6 @@ export default function Login() {
         <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', padding:isMobile?'32px 20px':'40px 48px', overflowY:'auto' }}>
           <div style={{ width:'100%', maxWidth:360 }}>
 
-            {/* Mobile logo */}
             {isMobile && (
               <div style={{ marginBottom:24, display:'flex', alignItems:'center', gap:8 }}>
                 <div style={{ width:32, height:32, borderRadius:8, background:'linear-gradient(135deg,#0d9488,#3b6fd4)', display:'flex', alignItems:'center', justifyContent:'center' }}>
@@ -303,7 +313,6 @@ export default function Login() {
             <h2 style={{ fontSize:isMobile?22:26, fontWeight:700, color:'#1e3a5f', marginBottom:28 }}>Login to HealthLine</h2>
 
             <form onSubmit={handlePasswordLogin}>
-              {/* Email/Mobile */}
               <div style={{ marginBottom:16 }}>
                 <label style={s.label}>Email ID or Mobile Number</label>
                 <input type="text" value={identifier}
@@ -312,7 +321,6 @@ export default function Login() {
                   style={s.input} autoFocus autoComplete="username" />
               </div>
 
-              {/* Password */}
               <div style={{ marginBottom:4 }}>
                 <label style={s.label}>Password</label>
                 <div style={{ position:'relative' }}>
@@ -327,12 +335,10 @@ export default function Login() {
                 </div>
               </div>
 
-              {/* Error */}
               {pwError && (
                 <div style={{ background:'#fef2f2', border:'1px solid #fecaca', borderRadius:4, padding:'9px 13px', fontSize:13, color:'#dc2626', marginTop:8 }}>{pwError}</div>
               )}
 
-              {/* Forgot */}
               <div style={{ textAlign:'right', marginTop:10, marginBottom:4 }}>
                 <button type="button" onClick={() => setShowForgot(true)}
                   style={{ background:'none', border:'none', cursor:'pointer', color:'#3b6fd4', fontWeight:500, fontSize:14 }}>
@@ -342,7 +348,6 @@ export default function Login() {
 
               <div style={{ textAlign:'center', color:'#6b7280', fontSize:14, fontWeight:500, margin:'18px 0' }}>(OR)</div>
 
-              {/* OTP */}
               <div style={{ marginBottom:20 }}>
                 <label style={{ ...s.label, marginBottom:10 }}>Login with OTP</label>
                 <div style={{ display:'flex', gap:8, marginBottom:12 }}>
@@ -387,7 +392,6 @@ export default function Login() {
                 )}
               </div>
 
-              {/* Login btn */}
               <button type={otpSent?'button':'submit'} onClick={otpSent?handleOtpLogin:undefined}
                 disabled={pwLoading||otpLoading||(otpSent&&otp.length!==6)} className="hl-btn-hover"
                 style={{ ...s.btn, opacity:(pwLoading||otpLoading||(otpSent&&otp.length!==6))?0.6:1 }}>
