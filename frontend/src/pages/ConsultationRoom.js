@@ -4,10 +4,10 @@ import { ArrowLeft, PhoneOff, Video, MessageCircle, X } from 'lucide-react';
 import axios from 'axios';
 import { useAuth } from '@/context/AuthContext';
 import { toast } from 'sonner';
+import { connect } from 'twilio-video';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8001';
 const API = `${BACKEND_URL}/api`;
-const ZOOM_SDK_KEY = process.env.REACT_APP_ZOOM_SDK_KEY;
 
 function useWindowWidth() {
   const [w, setW] = React.useState(window.innerWidth);
@@ -31,7 +31,6 @@ export default function ConsultationRoom() {
 
   const [appointment, setAppointment] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [zoomLoaded, setZoomLoaded] = useState(false);
   const [inMeeting, setInMeeting] = useState(false);
   const [error, setError] = useState(null);
   const [showChat, setShowChat] = useState(false);
@@ -39,7 +38,9 @@ export default function ConsultationRoom() {
   const [newMessage, setNewMessage] = useState('');
   const [isChatOnly, setIsChatOnly] = useState(false);
 
-  const zoomClientRef = useRef(null);
+  const roomRef = useRef(null);
+  const localVideoRef = useRef(null);
+  const remoteVideoRef = useRef(null);
   const websocketRef = useRef(null);
   const messagesEndRef = useRef(null);
 
@@ -99,81 +100,83 @@ export default function ConsultationRoom() {
     };
   }, [token, appointment]);
 
-  useEffect(() => {
-    if (isChatOnly) return;
-    const loadZoom = async () => {
-      try {
-        const { ZoomMtg } = await import('@zoom/meetingsdk');
-        ZoomMtg.preLoadWasm();
-        ZoomMtg.prepareWebSDK();
-        zoomClientRef.current = ZoomMtg;
-        setZoomLoaded(true);
-      } catch (err) {
-        console.error('Zoom SDK load error:', err);
-        setError('Failed to load Zoom SDK');
-      }
-    };
-    loadZoom();
-  }, [isChatOnly]);
-
-  const startZoomMeeting = async () => {
-    if (!zoomClientRef.current) return;
+  const startVideoCall = async () => {
     try {
       toast.loading('Starting video consultation...');
-      const meetingRes = await axios.post(`${API}/zoom/meeting`,
-        { appointmentId, topic: 'HealthLine Consultation' },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      const { meetingNumber } = meetingRes.data;
-      const sigRes = await axios.post(`${API}/zoom/signature`,
-        { meetingNumber, role: user?.role === 'doctor' ? 1 : 0 },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      const { signature } = sigRes.data;
-      toast.dismiss();
-      const ZoomMtg = zoomClientRef.current;
-
-      // Zoom container activate karo
-      const zoomRoot = document.getElementById('zmmtg-root');
-      if (zoomRoot) zoomRoot.classList.add('zoom-active');
-
-      ZoomMtg.init({
-        leaveUrl: window.location.href,
-        patchJsMedia: true,
-        leaveOnPageUnload: true,
-        success: () => {
-          ZoomMtg.join({
-            sdkKey: ZOOM_SDK_KEY,
-            signature,
-            meetingNumber,
-            passWord: '',
-            userName: user?.full_name || (user?.role === 'doctor' ? 'Doctor' : 'Patient'),
-            userEmail: user?.email || '',
-            success: () => { setInMeeting(true); toast.success('Joined meeting!'); },
-            error: (err) => { console.error('Join error:', err); toast.error('Failed to join meeting'); }
-          });
+      const res = await axios.post(
+        `${API}/twilio/token`,
+        {
+          roomName: `consultation-${appointmentId}`,
+          identity: user?.full_name || user?.email || String(user?.id)
         },
-        error: (err) => {
-          // Error pe container hide karo
-          if (zoomRoot) zoomRoot.classList.remove('zoom-active');
-          console.error('Init error:', err);
-          toast.error('Failed to initialize Zoom');
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      const twilioToken = res.data.token;
+      toast.dismiss();
+
+      const room = await connect(twilioToken, {
+        name: `consultation-${appointmentId}`,
+        audio: true,
+        video: { width: 640 }
+      });
+
+      roomRef.current = room;
+      setInMeeting(true);
+      toast.success('Video call started!');
+
+      room.localParticipant.videoTracks.forEach(publication => {
+        if (localVideoRef.current) {
+          localVideoRef.current.innerHTML = '';
+          localVideoRef.current.appendChild(publication.track.attach());
         }
       });
+
+      room.participants.forEach(participant => handleRemoteParticipant(participant));
+
+      room.on('participantConnected', participant => {
+        toast.success('Other participant joined!');
+        handleRemoteParticipant(participant);
+      });
+
+      room.on('participantDisconnected', () => {
+        if (remoteVideoRef.current) remoteVideoRef.current.innerHTML = '';
+        toast.error('Other participant left');
+      });
+
     } catch (err) {
       toast.dismiss();
-      toast.error('Failed to start meeting');
+      console.error('Twilio error:', err);
+      setError('Failed to start video call. Please try again.');
+      toast.error('Failed to start video call');
     }
   };
 
-  const endCall = () => {
-    if (zoomClientRef.current && inMeeting) {
-      try { zoomClientRef.current.leaveMeeting({}); } catch {}
-    }
-    // Zoom container hide karo
-    const zoomRoot = document.getElementById('zmmtg-root');
-    if (zoomRoot) zoomRoot.classList.remove('zoom-active');
+  const handleRemoteParticipant = (participant) => {
+    participant.tracks.forEach(publication => {
+      if (publication.isSubscribed && publication.track) {
+        if (remoteVideoRef.current) {
+          remoteVideoRef.current.innerHTML = '';
+          remoteVideoRef.current.appendChild(publication.track.attach());
+        }
+      }
+    });
+    participant.on('trackSubscribed', track => {
+      if (remoteVideoRef.current) {
+        remoteVideoRef.current.innerHTML = '';
+        remoteVideoRef.current.appendChild(track.attach());
+      }
+    });
+  };
 
+  const endCall = () => {
+    if (roomRef.current) {
+      roomRef.current.localParticipant.videoTracks.forEach(publication => {
+        publication.track.stop();
+        publication.track.detach();
+      });
+      roomRef.current.disconnect();
+      roomRef.current = null;
+    }
     if (websocketRef.current?.readyState === WebSocket.OPEN) {
       websocketRef.current.send(JSON.stringify({ type: 'leave' }));
       websocketRef.current.close();
@@ -237,30 +240,33 @@ export default function ConsultationRoom() {
   );
 
   const VideoArea = () => (
-    <div id="zmmtg-root" style={{ background:'#1e293b', borderRadius:isMobile?12:16, overflow:'hidden', display:'flex', alignItems:'center', justifyContent:'center', minHeight:isMobile?280:400, flex:1 }}>
-      {!inMeeting && (
+    <div style={{ background:'#1e293b', borderRadius:isMobile?12:16, overflow:'hidden', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', minHeight:isMobile?280:400, flex:1, position:'relative' }}>
+      {!inMeeting ? (
         <div style={{ textAlign:'center', color:'#fff', padding:'2rem' }}>
           {error ? (
             <div>
               <p style={{ color:'#fca5a5', marginBottom:12 }}>{error}</p>
-              <button onClick={() => window.location.reload()} style={{ padding:'8px 20px', background:'#334155', border:'none', borderRadius:999, color:'#fff', cursor:'pointer' }}>Reload</button>
+              <button onClick={() => setError(null)} style={{ padding:'8px 20px', background:'#334155', border:'none', borderRadius:999, color:'#fff', cursor:'pointer' }}>Retry</button>
             </div>
           ) : (
             <div>
               <div style={{ width:70, height:70, borderRadius:'50%', background:'#334155', display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 16px' }}>
                 <Video size={30} color="#4f46e5" />
               </div>
-              <p style={{ color:'#94a3b8', fontSize:isMobile?13:15, marginBottom:6 }}>
-                {zoomLoaded ? 'Ready to start video consultation' : 'Loading Zoom...'}
-              </p>
-              <p style={{ color:'#64748b', fontSize:11, marginBottom:20, fontFamily:mono }}>Powered by Zoom</p>
-              <button onClick={startZoomMeeting} disabled={!zoomLoaded}
-                style={{ padding:isMobile?'10px 24px':'14px 40px', background:zoomLoaded?'#4f46e5':'#334155', border:'none', borderRadius:999, color:'#fff', fontSize:isMobile?13:15, fontWeight:600, cursor:zoomLoaded?'pointer':'not-allowed', display:'inline-flex', alignItems:'center', gap:8 }}>
+              <p style={{ color:'#94a3b8', fontSize:isMobile?13:15, marginBottom:6 }}>Ready to start video consultation</p>
+              <p style={{ color:'#64748b', fontSize:11, marginBottom:20, fontFamily:mono }}>Powered by Twilio</p>
+              <button onClick={startVideoCall}
+                style={{ padding:isMobile?'10px 24px':'14px 40px', background:'#4f46e5', border:'none', borderRadius:999, color:'#fff', fontSize:isMobile?13:15, fontWeight:600, cursor:'pointer', display:'inline-flex', alignItems:'center', gap:8 }}>
                 <Video size={isMobile?16:20} />
-                {zoomLoaded ? 'Start Video Call' : 'Loading...'}
+                Start Video Call
               </button>
             </div>
           )}
+        </div>
+      ) : (
+        <div style={{ width:'100%', height:'100%', position:'relative', minHeight:isMobile?280:400 }}>
+          <div ref={remoteVideoRef} style={{ width:'100%', height:'100%', background:'#0f172a', display:'flex', alignItems:'center', justifyContent:'center' }} />
+          <div ref={localVideoRef} style={{ position:'absolute', bottom:12, right:12, width:isMobile?80:120, height:isMobile?60:90, borderRadius:8, overflow:'hidden', border:'2px solid #4f46e5', background:'#1e293b' }} />
         </div>
       )}
     </div>
