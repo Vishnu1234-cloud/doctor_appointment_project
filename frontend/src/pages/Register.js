@@ -37,6 +37,65 @@ const LockIcon = () => (
   </svg>
 );
 
+// ── Password Strength Checker ──────────────────────────
+const getPasswordStrength = (pw) => {
+  if (!pw) return { score: 0, label: '', color: '', checks: { length: false, upper: false, lower: false, number: false, special: false } };
+  const checks = {
+    length:  pw.length >= 8,
+    upper:   /[A-Z]/.test(pw),
+    lower:   /[a-z]/.test(pw),
+    number:  /[0-9]/.test(pw),
+    special: /[^A-Za-z0-9]/.test(pw),
+  };
+  const passed = Object.values(checks).filter(Boolean).length;
+  let score = 0, label = '', color = '';
+  if (passed <= 2) { score = 1; label = 'Weak';   color = '#ef4444'; }
+  else if (passed === 3) { score = 2; label = 'Fair';   color = '#f97316'; }
+  else if (passed === 4) { score = 3; label = 'Good';   color = '#eab308'; }
+  else                  { score = 4; label = 'Strong'; color = '#22c55e'; }
+  return { score, label, color, checks };
+};
+
+const PasswordStrengthMeter = ({ password }) => {
+  const { score, label, color, checks } = getPasswordStrength(password);
+  if (!password) return null;
+  const bars = [1, 2, 3, 4];
+  const checkItems = [
+    { key: 'length',  text: 'At least 8 characters' },
+    { key: 'upper',   text: 'One uppercase letter (A-Z)' },
+    { key: 'lower',   text: 'One lowercase letter (a-z)' },
+    { key: 'number',  text: 'One number (0-9)' },
+    { key: 'special', text: 'One special character (!@#$...)' },
+  ];
+  return (
+    <div style={{ marginTop: 8 }}>
+      {/* Bar */}
+      <div style={{ display: 'flex', gap: 4, marginBottom: 4 }}>
+        {bars.map(b => (
+          <div key={b} style={{
+            flex: 1, height: 4, borderRadius: 2,
+            background: b <= score ? color : '#e5e7eb',
+            transition: 'background 0.3s',
+          }} />
+        ))}
+      </div>
+      {/* Label */}
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
+        <span style={{ fontSize: 11, fontWeight: 700, color, letterSpacing: '0.05em' }}>{label}</span>
+      </div>
+      {/* Checklist */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '3px 12px' }}>
+        {checkItems.map(({ key, text }) => (
+          <div key={key} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: checks[key] ? '#16a34a' : '#9ca3af' }}>
+            <span style={{ fontSize: 13 }}>{checks[key] ? '✓' : '○'}</span>
+            {text}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
 export default function Register() {
   const navigate = useNavigate();
   const { register, loginWithGoogle } = useAuth();
@@ -82,8 +141,16 @@ export default function Register() {
       const age = (new Date() - dob) / (365.25 * 24 * 60 * 60 * 1000);
       if (age < 1) errs.date_of_birth = 'Please enter a valid date of birth.';
     }
-    if (!formData.password) errs.password = 'Password is required.';
-    else if (formData.password.length < 8) errs.password = 'Password must be at least 8 characters.';
+    if (!formData.password) {
+      errs.password = 'Password is required.';
+    } else {
+      const { checks } = getPasswordStrength(formData.password);
+      if (!checks.length)        errs.password = 'Password must be at least 8 characters.';
+      else if (!checks.upper)    errs.password = 'Add at least one uppercase letter (A-Z).';
+      else if (!checks.lower)    errs.password = 'Add at least one lowercase letter (a-z).';
+      else if (!checks.number)   errs.password = 'Add at least one number (0-9).';
+      else if (!checks.special)  errs.password = 'Add at least one special character (e.g. @#$!%).';
+    }
     if (formData.password !== formData.confirmPassword) errs.confirmPassword = 'Passwords do not match.';
     if (!agreed) errs.agreed = 'Please accept the Terms of Use and Privacy Policy.';
     return errs;
@@ -334,8 +401,18 @@ export default function Register() {
                     </button>
                   </div>
                   {errors.confirmPassword && <p style={s.err}>{errors.confirmPassword}</p>}
+                  {/* Confirm match tick */}
+                  {formData.confirmPassword && formData.password === formData.confirmPassword && (
+                    <p style={{ color: '#16a34a', fontSize: 12, marginTop: 4 }}>✓ Passwords match</p>
+                  )}
                 </div>
               </div>
+              {/* ── Strength Meter (full width below both fields) ── */}
+              {formData.password && (
+                <div style={{ marginTop: 10, padding: '12px 14px', background: '#f9fafb', borderRadius: 6, border: '1px solid #e5e7eb' }}>
+                  <PasswordStrengthMeter password={formData.password} />
+                </div>
+              )}
             </div>
 
             {/* ── Terms & Privacy ── */}

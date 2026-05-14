@@ -2,22 +2,42 @@ import jwt from 'jsonwebtoken';
 import config from '../config/env.js';
 import User from '../models/User.js';
 import logger from '../utils/logger.js';
+import { isTokenBlacklisted, isTokenIssuedBeforeInvalidation } from '../services/tokenBlacklist.service.js';
 
 export const authMiddleware = async (req, res, next) => {
   try {
-    // Get token from header
-    const authHeader = req.headers.authorization;
+    let token = null;
 
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    // ✅ FIX: Pehle httpOnly cookie check karo, phir Authorization header
+    if (req.cookies && req.cookies.auth_token) {
+      token = req.cookies.auth_token;
+    } else {
+      const authHeader = req.headers.authorization;
+      if (authHeader && authHeader.startsWith('Bearer ')) {
+        token = authHeader.substring(7);
+      }
+    }
+
+    if (!token) {
       return res.status(401).json({ detail: 'No token provided' });
     }
 
-    const token = authHeader.substring(7); // Remove 'Bearer '
+    // ✅ FIX: Logout ke baad blacklisted token reject karo
+    const blacklisted = await isTokenBlacklisted(token);
+    if (blacklisted) {
+      return res.status(401).json({ detail: 'Token has been revoked. Please login again.' });
+    }
 
-    // Verify token
+    // Token verify karo
     const decoded = jwt.verify(token, config.jwtSecret);
 
-    // Get user from database
+    // ✅ FIX: Password reset ke baad purane tokens reject karo
+    const issuedBeforeReset = await isTokenIssuedBeforeInvalidation(decoded.id, decoded.iat);
+    if (issuedBeforeReset) {
+      return res.status(401).json({ detail: 'Session expired after password change. Please login again.' });
+    }
+
+    // Database se user lo
     const user = await User.findOne({ email: decoded.sub }).select('-password');
 
     if (!user) {
@@ -28,7 +48,6 @@ export const authMiddleware = async (req, res, next) => {
       return res.status(401).json({ detail: 'User account is inactive' });
     }
 
-    // Attach user to request
     req.user = {
       id: user.id,
       email: user.email,
@@ -53,17 +72,14 @@ export const authMiddleware = async (req, res, next) => {
   }
 };
 
-// Role-based authorization middleware
 export const requireRole = (...allowedRoles) => {
   return (req, res, next) => {
     if (!req.user) {
       return res.status(401).json({ detail: 'Authentication required' });
     }
-
     if (!allowedRoles.includes(req.user.role)) {
       return res.status(403).json({ detail: 'Insufficient permissions' });
     }
-
     next();
   };
 };

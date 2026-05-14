@@ -415,7 +415,7 @@ export default function ConsultationRoom() {
           showChat ? <div style={{ flex:1 }}><ChatPanel/></div> : <VideoArea/>
         ) : (
           <div style={{ flex:1, display:'grid', gridTemplateColumns:'1fr 340px', gap:'1rem' }}>
-            <VideoArea/>
+        t    <VideoArea/>
             <ChatPanel/>
           </div>
         )}

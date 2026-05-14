@@ -5,6 +5,7 @@ import mongoSanitize from 'express-mongo-sanitize';
 import xss from 'xss-clean';
 import pinoHttp from 'pino-http';
 import crypto from 'crypto';
+import cookieParser from 'cookie-parser'; // ✅ NEW: cookie-parser add kiya
 import config from './config/env.js';
 import corsOptions from './config/cors.js';
 import logger from './utils/logger.js';
@@ -37,6 +38,8 @@ app.use(passport.initialize());
 // Body parsers
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+// ✅ NEW: Cookie parser (httpOnly cookie auth ke liye zaroori)
+app.use(cookieParser());
 // Sanitize data
 app.use(mongoSanitize());
 app.use(xss());
